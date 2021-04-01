@@ -1,0 +1,10 @@
+[package]
+name = "beam"
+version = "0.1.0"
+authors = ["Kezenator <github@kezenator.com>"]
+edition = "2018"
+
+[dependencies]
+sdl2 = { version = "0.34.3", features = ["bundled", "static-link"] }
+rand = { version = "0.8.3" }
+winapi = { version = "0.3.9", features = ["std", "shellscalingapi"] }
