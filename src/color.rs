@@ -1,14 +1,17 @@
+use crate::math::Float;
+
+#[derive(Clone)]
 pub struct RGBA
 {
-    r: f64,
-    g: f64,
-    b: f64,
-    a: f64,
+    r: Float,
+    g: Float,
+    b: Float,
+    a: Float,
 }
 
 impl RGBA
 {
-    pub fn new(r: f64, g: f64, b: f64, a: f64) -> Self
+    pub fn new(r: Float, g: Float, b: Float, a: Float) -> Self
     {
         RGBA { r, g, b, a}
     }
@@ -24,7 +27,7 @@ impl RGBA
     }
 }
 
-fn to_u8_saturate(f: f64) -> u8
+fn to_u8_saturate(f: Float) -> u8
 {
     let f = f * 255.0;
 

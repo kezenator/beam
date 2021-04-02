@@ -1,4 +1,6 @@
 use crate::color;
+use crate::math::Float;
+use crate::scene::Scene;
 
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -34,7 +36,7 @@ pub struct Renderer
     receiver: Option<std::sync::mpsc::Receiver<PixelUpdate>>,
 }
 
-const PIXELS_PER_UPDATE: usize = 100;
+const PIXELS_PER_UPDATE: usize = 1000;
 
 impl Renderer
 {
@@ -107,6 +109,8 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
         (state.options.width, state.options.height, state.sender.clone())
     };
 
+    let scene = Scene::new_default();
+
     const MAX_STEP_SIZE: u32 = 1024;
 
     let mut step = MAX_STEP_SIZE;
@@ -124,8 +128,6 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
 
                 if (step == MAX_STEP_SIZE) || (x_mod != 0) || (y_mod != 0)
                 {
-                    let lum = (step as f64) / 256.0;
-
                     let mut w_step = step;
                     let mut h_step = step;
 
@@ -139,12 +141,15 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
                         h_step = height - y;
                     }
 
+                    let u = (x as Float) / (width as Float);
+                    let v = (y as Float) / (height as Float);
+
                     let update = PixelUpdate{
                         x: x,
                         y: y,
                         width: w_step,
                         height: h_step,
-                        color: color::RGBA::new(lum, lum, lum, 1.0),
+                        color: scene.sample_pixel(u, v),
                     };
 
                     updates.push(update);
