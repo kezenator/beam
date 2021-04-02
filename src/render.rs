@@ -4,7 +4,8 @@ use crate::scene::Scene;
 
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use rand::{thread_rng, seq::SliceRandom};
+use rand::{thread_rng, Rng, seq::SliceRandom};
+use rayon::prelude::*;
 
 pub struct RenderOptions
 {
@@ -36,7 +37,7 @@ pub struct Renderer
     receiver: Option<std::sync::mpsc::Receiver<PixelUpdate>>,
 }
 
-const PIXELS_PER_UPDATE: usize = 1000;
+const PIXELS_PER_UPDATE: usize = 10000;
 
 impl Renderer
 {
@@ -111,68 +112,108 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
 
     let scene = Scene::new_default();
 
+    // First, do a quick pass at decreasing sizes
+
     const MAX_STEP_SIZE: u32 = 1024;
 
     let mut step = MAX_STEP_SIZE;
 
     while step > 0
     {
-        let mut updates = Vec::new();
-
-        for x in (0..width).step_by(step as usize)
+        if !render_pass(&scene, width, height, step, step == MAX_STEP_SIZE, 1, sender.clone())
         {
-            for y in (0..height).step_by(step as usize)
-            {
-                let x_mod = x % (step * 2);
-                let y_mod = y % (step * 2);
-
-                if (step == MAX_STEP_SIZE) || (x_mod != 0) || (y_mod != 0)
-                {
-                    let mut w_step = step;
-                    let mut h_step = step;
-
-                    if (x + w_step) > width
-                    {
-                        w_step = width - x;
-                    }
-
-                    if (y + h_step) > height
-                    {
-                        h_step = height - y;
-                    }
-
-                    let u = (x as Float) / (width as Float);
-                    let v = (y as Float) / (height as Float);
-
-                    let update = PixelUpdate{
-                        x: x,
-                        y: y,
-                        width: w_step,
-                        height: h_step,
-                        color: scene.sample_pixel(u, v),
-                    };
-
-                    updates.push(update);
-                }
-            }
-        }
-
-        updates.shuffle(&mut thread_rng());
-
-        for update in updates.drain(..)
-        {
-            if sender.send(update).is_err()
-            {
-                return;
-            }
+            return;
         }
 
         step /= 2;
     }
+
+    // Now, do a single pass with multi-sampling
+
+    if !render_pass(&scene, width, height, 1, true, 64, sender.clone())
+    {
+        return;
+    }
+
+    // We've rendered in as much detail as we want for now
 
     {
         let mut state = arc.lock().unwrap();
 
         state.complete = true;
     }
+}
+
+fn render_pass(scene: &Scene, width: u32, height: u32, step: u32, all_pixels: bool, samples_per_pixel: u32, sender: std::sync::mpsc::SyncSender<PixelUpdate>) -> bool
+{
+    let mut updates = Vec::new();
+
+    for x in (0..width).step_by(step as usize)
+    {
+        for y in (0..height).step_by(step as usize)
+        {
+            let x_mod = x % (step * 2);
+            let y_mod = y % (step * 2);
+
+            if all_pixels || (x_mod != 0) || (y_mod != 0)
+            {
+                let mut w_step = step;
+                let mut h_step = step;
+
+                if (x + w_step) > width
+                {
+                    w_step = width - x;
+                }
+
+                if (y + h_step) > height
+                {
+                    h_step = height - y;
+                }
+
+                let update = PixelUpdate{
+                    x: x,
+                    y: y,
+                    width: w_step,
+                    height: h_step,
+                    color: color::RGBA::new(0.0, 0.0, 0.0, 1.0),
+                };
+
+                updates.push(update);
+            }
+        }
+    }
+
+    updates.shuffle(&mut thread_rng());
+
+    updates.par_iter().all(|update|
+    {
+        let mut rng = thread_rng();
+        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+    
+        let mut color = color::RGBA::new(0.0, 0.0, 0.0, 1.0);
+
+        for _ in 0..samples_per_pixel
+        {
+            let u = ((update.x as Float) + rng.sample(uniform)) / (width as Float);
+            let v = ((update.y as Float) + rng.sample(uniform)) / (height as Float);
+
+            color = color + scene.sample_pixel(u, v);
+        }
+
+        let update =  PixelUpdate
+        {
+            x: update.x,
+            y: update.y,
+            width: update.width,
+            height: update.height,
+            color: color.divided_by_scalar(samples_per_pixel as Float),
+        };
+
+        if sender.send(update).is_err()
+        {
+            return false;
+        }
+
+        return true;
+    })
 }
