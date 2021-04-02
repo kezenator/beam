@@ -1,10 +1,11 @@
 use crate::color;
-use crate::math::Float;
+use crate::math::Scalar;
 use crate::scene::Scene;
+use crate::sample::Sampler;
 
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use rand::{thread_rng, Rng, seq::SliceRandom};
+use rand::{thread_rng, seq::SliceRandom};
 use rayon::prelude::*;
 
 pub struct RenderOptions
@@ -49,6 +50,7 @@ impl Renderer
         {
             options,
             sender,
+            progress: "First pass".to_owned(),
             complete: false,
         };
 
@@ -84,6 +86,12 @@ impl Renderer
         let state = self.arc.lock().unwrap();
         state.complete
     }
+
+    pub fn get_progress_str(&self) -> String
+    {
+        let state = self.arc.lock().unwrap();
+        state.progress.clone()
+    }
 }
 
 impl Drop for Renderer
@@ -99,6 +107,7 @@ struct RenderState
 {
     options: RenderOptions,
     sender: std::sync::mpsc::SyncSender<PixelUpdate>,
+    progress: String,
     complete: bool,
 }
 
@@ -128,11 +137,33 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
         step /= 2;
     }
 
-    // Now, do a single pass with multi-sampling
+    {
+        let mut state = arc.lock().unwrap();
+        state.progress = "Completed 1 sample per pixel".to_owned();
+    }
+
+    // Now, do a single pass with 64 x multi-sampling
 
     if !render_pass(&scene, width, height, 1, true, 64, sender.clone())
     {
         return;
+    }
+
+    {
+        let mut state = arc.lock().unwrap();
+        state.progress = "Completed 64 samples per pixel".to_owned();
+    }
+
+    // Finally update to 1000 x multi-sampling
+
+    if !render_pass(&scene, width, height, 1, true, 1000, sender.clone())
+    {
+        return;
+    }
+
+    {
+        let mut state = arc.lock().unwrap();
+        state.progress = "Completed 1000 samples per pixel".to_owned();
     }
 
     // We've rendered in as much detail as we want for now
@@ -146,6 +177,9 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
 
 fn render_pass(scene: &Scene, width: u32, height: u32, step: u32, all_pixels: bool, samples_per_pixel: u32, sender: std::sync::mpsc::SyncSender<PixelUpdate>) -> bool
 {
+    // Work out which pixels we need to update, and the size
+    // that they are drawn at
+
     let mut updates = Vec::new();
 
     for x in (0..width).step_by(step as usize)
@@ -183,21 +217,28 @@ fn render_pass(scene: &Scene, width: u32, height: u32, step: u32, all_pixels: bo
         }
     }
 
+    // Shuffle the updates so they occur in a more random order.
+
     updates.shuffle(&mut thread_rng());
+
+    // Now - in parallel, try and multi-sample each pixel
+    // the required number of times.
+    // If any send fails (if the render has been aborted),
+    // then the "all" operation will short-circuit and return
+    // immediately.
 
     updates.par_iter().all(|update|
     {
-        let mut rng = thread_rng();
-        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+        let mut sampler = Sampler::new();
     
         let mut color = color::RGBA::new(0.0, 0.0, 0.0, 1.0);
 
         for _ in 0..samples_per_pixel
         {
-            let u = ((update.x as Float) + rng.sample(uniform)) / (width as Float);
-            let v = ((update.y as Float) + rng.sample(uniform)) / (height as Float);
+            let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (width as Scalar);
+            let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (height as Scalar);
 
-            color = color + scene.sample_pixel(u, v);
+            color = color + scene.sample_pixel(u, v, &mut sampler);
         }
 
         let update =  PixelUpdate
@@ -206,7 +247,7 @@ fn render_pass(scene: &Scene, width: u32, height: u32, step: u32, all_pixels: bo
             y: update.y,
             width: update.width,
             height: update.height,
-            color: color.divided_by_scalar(samples_per_pixel as Float),
+            color: color.divided_by_scalar(samples_per_pixel as Scalar).gamma_corrected_2(),
         };
 
         if sender.send(update).is_err()

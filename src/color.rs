@@ -1,24 +1,34 @@
-use crate::math::Float;
+use crate::math::Scalar;
 
 #[derive(Clone)]
 pub struct RGBA
 {
-    r: Float,
-    g: Float,
-    b: Float,
-    a: Float,
+    r: Scalar,
+    g: Scalar,
+    b: Scalar,
+    a: Scalar,
 }
 
 impl RGBA
 {
-    pub fn new(r: Float, g: Float, b: Float, a: Float) -> Self
+    pub fn new(r: Scalar, g: Scalar, b: Scalar, a: Scalar) -> Self
     {
         RGBA { r, g, b, a}
     }
 
-    pub fn divided_by_scalar(&self, div: Float) -> Self
+    pub fn divided_by_scalar(&self, div: Scalar) -> Self
     {
         RGBA::new(self.r / div, self.g / div, self.b / div, self.a)
+    }
+
+    pub fn combined_with(&self, rhs: &RGBA) -> Self
+    {
+        RGBA::new(self.r * rhs.r, self.g * rhs.g, self.b * rhs.b, self.a * rhs.a)
+    }
+
+    pub fn gamma_corrected_2(&self) -> Self
+    {
+        RGBA::new(self.r.sqrt(), self.g.sqrt(), self.b.sqrt(), self.a)
     }
 
     pub fn to_u8_tuple(&self) -> (u8, u8, u8, u8)
@@ -42,7 +52,7 @@ impl std::ops::Add for RGBA
     }
 }
 
-fn to_u8_saturate(f: Float) -> u8
+fn to_u8_saturate(f: Scalar) -> u8
 {
     let f = f * 255.0;
 

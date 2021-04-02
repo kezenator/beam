@@ -1,10 +1,10 @@
-use crate::math::Float;
+use crate::math::Scalar;
 use crate::vec::{Dir3, Point3};
 use crate::color::RGBA;
 
 pub struct Intersection
 {
-    pub distance: Float,
+    pub distance: Scalar,
     pub location: Point3,
     pub normal: Dir3,
     pub color: RGBA,
@@ -12,7 +12,7 @@ pub struct Intersection
 
 impl Intersection
 {
-    pub fn new(distance: Float, location: Point3, normal: Dir3, color: RGBA) -> Self
+    pub fn new(distance: Scalar, location: Point3, normal: Dir3, color: RGBA) -> Self
     {
         Intersection { distance, location, normal, color }
     }

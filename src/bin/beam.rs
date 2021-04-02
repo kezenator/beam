@@ -8,7 +8,7 @@ use beam::render::{Renderer, RenderOptions};
 fn main() -> Result<(), String>
 {
     const WIDTH: u32 = 800;
-    const HEIGHT: u32 = 600;
+    const HEIGHT: u32 = 800;
 
     unsafe
     {
@@ -66,16 +66,21 @@ fn main() -> Result<(), String>
                 sdl2::pixels::Color::from(update.color.to_u8_tuple()))?;
         }
 
-        if renderer.is_complete()
-        {
-            canvas.window_mut().set_title("Beam - Complete!").expect("Could not set window title");
-        }
+        canvas.window_mut().set_title(&format!("Beam - {}", renderer.get_progress_str())).expect("Could not set window title");
 
         let texture = surface.as_texture(&texture_creator).unwrap();
         canvas.copy(&texture, None, None)?;
 
         canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+
+        if renderer.is_complete()
+        {
+            ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 20));
+        }
+        else
+        {
+            ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        }
     }
 
     Ok(())

@@ -1,4 +1,4 @@
-use crate::math::{Float, EPSILON};
+use crate::math::{Scalar, EPSILON};
 use crate::vec::Point3;
 use crate::color::RGBA;
 use crate::intersection::Intersection;
@@ -7,13 +7,13 @@ use crate::ray::Ray;
 pub struct Sphere
 {
     centre: Point3,
-    radius: Float,
+    radius: Scalar,
     color: RGBA,
 }
 
 impl Sphere
 {
-    pub fn new(centre: Point3, radius: Float, color: RGBA) -> Self
+    pub fn new(centre: Point3, radius: Scalar, color: RGBA) -> Self
     {
         Sphere { centre, radius, color }
     }
