@@ -16,6 +16,11 @@ impl RGBA
         RGBA { r, g, b, a}
     }
 
+    pub fn multiplied_by_scalar(&self, mul: Scalar) -> Self
+    {
+        RGBA::new(self.r * mul, self.g * mul, self.b * mul, self.a)
+    }
+
     pub fn divided_by_scalar(&self, div: Scalar) -> Self
     {
         RGBA::new(self.r / div, self.g / div, self.b / div, self.a)

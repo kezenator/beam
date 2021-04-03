@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod color;
 pub mod intersection;
+pub mod light;
 pub mod math;
 pub mod object;
 pub mod ray;

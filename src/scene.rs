@@ -1,6 +1,7 @@
 use crate::math::{EPSILON, Scalar};
-use crate::vec::Point3;
+use crate::vec::{Dir3, Point3};
 use crate::color::RGBA;
+use crate::light::Light;
 use crate::ray::Ray;
 use crate::sample::Sampler;
 use crate::camera::Camera;
@@ -9,14 +10,15 @@ use crate::object::Sphere;
 pub struct Scene
 {
     camera: Camera,
+    lights: Vec<Light>,
     objects: Vec<Sphere>,
 }
 
 impl Scene
 {
-    pub fn new(camera: Camera, objects: Vec<Sphere>) -> Self
+    pub fn new(camera: Camera, lights: Vec<Light>, objects: Vec<Sphere>) -> Self
     {
-        Scene { camera, objects }
+        Scene { camera, lights, objects }
     }
 
     pub fn new_default() -> Self
@@ -24,12 +26,26 @@ impl Scene
         Self::new(
             Camera::new(),
             vec![
-                Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0, RGBA::new(1.0, 1.0, 1.0, 1.0)),
-                Sphere::new(Point3::new(2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 1.0, 0.0, 1.0)),
-                Sphere::new(Point3::new(-2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.0, 1.0, 1.0)),
-                Sphere::new(Point3::new(0.0, 2.0, 0.0), 1.0, RGBA::new(1.0, 0.0, 0.0, 1.0)),
+                Light::ambient(RGBA::new(0.1, 0.1, 0.1, 1.0)),
+                Light::directional(RGBA::new(0.9, 0.9, 0.9, 1.0), Dir3::new(0.0, 0.0, -1.0)),
+            ],
+            vec![
+                // White sphere at the origin
+                Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0, RGBA::new(0.8, 0.8, 0.8, 1.0)),
+
+                // Red, green and blue ones around it
+                Sphere::new(Point3::new(0.0, 2.0, 0.0), 1.0, RGBA::new(0.8, 0.0, 0.0, 1.0)),
+                Sphere::new(Point3::new(2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.8, 0.0, 1.0)),
+                Sphere::new(Point3::new(-2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.0, 0.8, 1.0)),
+
+                // Grey sphere below
                 Sphere::new(Point3::new(0.0, -2.0, 0.0), 1.0, RGBA::new(0.5, 0.5, 0.5, 1.0)),
-                Sphere::new(Point3::new(0.0, 0.0, -10.0), 5.0, RGBA::new(0.5, 0.584, 0.929, 1.0)),
+
+                // Ground
+                Sphere::new(Point3::new(0.0, -100.0, 0.0), 95.0, RGBA::new(0.2, 0.2, 0.2, 1.0)),
+
+                // Wall behind
+                Sphere::new(Point3::new(0.0, 0.0, -13.0), 10.0, RGBA::new(0.5, 0.584, 0.929, 1.0)),
             ])
     }
 
@@ -84,11 +100,17 @@ impl Scene
             },
             None =>
             {
-                // No intersections - for now we have no lights,
-                // so we need to assume that there's infinite amounts
-                // of white light coming in from all directions
+                // No intersections - query the lights
+                // to see how much light they are providing
+
+                let mut color = RGBA::new(0.0, 0.0, 0.0, 1.0);
+
+                for light in self.lights.iter()
+                {
+                    color = color + light.get_light(ray);
+                }
                 
-                RGBA::new(1.0, 1.0, 1.0, 1.0)
+                color
             },
         }
     }
