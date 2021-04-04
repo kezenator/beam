@@ -119,8 +119,6 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
         (state.options.width, state.options.height, state.sender.clone())
     };
 
-    let scene = Scene::new_default();
-
     // First, do a quick pass at decreasing sizes
 
     const MAX_STEP_SIZE: u32 = 1024;
@@ -129,7 +127,7 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
 
     while step > 0
     {
-        if !render_pass(&scene, width, height, step, step == MAX_STEP_SIZE, 1, sender.clone())
+        if !render_pass(width, height, step, step == MAX_STEP_SIZE, 1, sender.clone())
         {
             return;
         }
@@ -144,7 +142,7 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
 
     // Now, do a single pass with 64 x multi-sampling
 
-    if !render_pass(&scene, width, height, 1, true, 64, sender.clone())
+    if !render_pass(width, height, 1, true, 64, sender.clone())
     {
         return;
     }
@@ -156,7 +154,7 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
 
     // Finally update to 1000 x multi-sampling
 
-    if !render_pass(&scene, width, height, 1, true, 1000, sender.clone())
+    if !render_pass(width, height, 1, true, 1000, sender.clone())
     {
         return;
     }
@@ -175,7 +173,7 @@ fn render_thread(arc: Arc<Mutex<RenderState>>)
     }
 }
 
-fn render_pass(scene: &Scene, width: u32, height: u32, step: u32, all_pixels: bool, samples_per_pixel: u32, sender: std::sync::mpsc::SyncSender<PixelUpdate>) -> bool
+fn render_pass(width: u32, height: u32, step: u32, all_pixels: bool, samples_per_pixel: u32, sender: std::sync::mpsc::SyncSender<PixelUpdate>) -> bool
 {
     // Work out which pixels we need to update, and the size
     // that they are drawn at
@@ -229,6 +227,8 @@ fn render_pass(scene: &Scene, width: u32, height: u32, step: u32, all_pixels: bo
 
     updates.par_iter().all(|update|
     {
+        let scene = Scene::new_default();
+
         let mut sampler = Sampler::new();
     
         let mut color = color::RGBA::new(0.0, 0.0, 0.0, 1.0);

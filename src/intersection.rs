@@ -1,19 +1,27 @@
+use crate::material::Material;
 use crate::math::Scalar;
+use crate::ray::Ray;
 use crate::vec::{Dir3, Point3};
-use crate::color::RGBA;
 
-pub struct Intersection
+pub struct SurfaceIntersection<'r>
 {
+    pub ray: &'r Ray,
     pub distance: Scalar,
-    pub location: Point3,
     pub normal: Dir3,
-    pub color: RGBA,
 }
 
-impl Intersection
+impl<'r> SurfaceIntersection<'r>
 {
-    pub fn new(distance: Scalar, location: Point3, normal: Dir3, color: RGBA) -> Self
+    pub fn location(&self) -> Point3
     {
-        Intersection { distance, location, normal, color }
+        self.ray.source + self.distance * self.ray.dir
     }
+}
+
+pub type SurfaceIntersectionCollector<'r, 'c> = dyn FnMut(SurfaceIntersection<'r>) + 'c;
+
+pub struct ObjectIntersection<'r, 'm>
+{
+    pub surface: SurfaceIntersection<'r>,
+    pub material: &'m Material,
 }

@@ -7,8 +7,8 @@ use beam::render::{Renderer, RenderOptions};
 
 fn main() -> Result<(), String>
 {
-    const WIDTH: u32 = 2000;
-    const HEIGHT: u32 = 2000;
+    const WIDTH: u32 = 1500;
+    const HEIGHT: u32 = 1500;
 
     unsafe
     {

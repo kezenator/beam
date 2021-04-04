@@ -1,53 +1,37 @@
-use crate::math::{Scalar, EPSILON};
-use crate::vec::Point3;
-use crate::color::RGBA;
-use crate::intersection::Intersection;
+use crate::geom::Surface;
+use crate::intersection::{ObjectIntersection, SurfaceIntersection};
+use crate::material::Material;
 use crate::ray::Ray;
 
-pub struct Sphere
+pub struct Object
 {
-    centre: Point3,
-    radius: Scalar,
-    color: RGBA,
+    surface: Box<dyn Surface>,
+    material: Material,
 }
 
-impl Sphere
+impl Object
 {
-    pub fn new(centre: Point3, radius: Scalar, color: RGBA) -> Self
+    pub fn new<S>(surface: S, material: Material) -> Self
+        where S: Surface + 'static
     {
-        Sphere { centre, radius, color }
+        Object
+        {
+            surface: Box::new(surface),
+            material,
+        }
     }
 
-    pub fn get_intersections(&self, ray: &Ray, intersections: &mut Vec<Intersection>)
+    pub fn get_intersections<'r, 'm>(&'m self, ray: &'r Ray, intersections: &mut Vec<ObjectIntersection<'r, 'm>>)
     {
-        let oc = ray.source - self.centre;
-        let a = ray.dir.magnitude_squared();
-        let half_b = oc.dot(ray.dir.clone());
-        let c = oc.magnitude_squared() - (self.radius * self.radius);
-
-        let discriminant = half_b*half_b - a*c;
-        if discriminant < 0.0
+        let mut collector = move |si: SurfaceIntersection<'r>|
         {
-            return;
-        }
-
-        let sqrtd = discriminant.sqrt();
-
-        // Find the nearest root that lies in the acceptable range.
-        let mut root = (-half_b - sqrtd) / a;
-        if root < EPSILON
-        {
-            root = (-half_b + sqrtd) / a;
-            if root < EPSILON
+            intersections.push(ObjectIntersection
             {
-                return;
-            }
-        }
+                surface: si,
+                material: &self.material,
+            });
+        };
 
-        let distance = root;
-        let location = ray.source + (root * ray.dir);
-        let normal = (location - self.centre) / self.radius;
-
-        intersections.push(Intersection::new(distance, location, normal, self.color.clone()));
+        self.surface.get_intersections(ray, &mut collector);
     }
 }

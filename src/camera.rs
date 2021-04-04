@@ -16,11 +16,11 @@ impl Camera
         let location = Point3::new(-3.0, 12.0, 12.0);
         let look_at = Point3::new(0.0, 0.0, 0.0);
         let up = Point3::new(0.0, 1.0, 0.0);
-        let fov = 20.0;
+        let fov = 30.0;
         let aspect_ratio = 1.0;
 
         let theta = crate::math::degrees_to_radians(fov);
-        let h = (theta /2.0).tan();
+        let h = (theta / 2.0).tan();
         let viewport_height = 2.0 * h;
         let viewport_width = aspect_ratio * viewport_height;
 

@@ -2,27 +2,51 @@ use crate::math::{EPSILON, Scalar};
 use crate::vec::{Dir3, Point3};
 use crate::color::RGBA;
 use crate::light::Light;
+use crate::material::Material;
 use crate::ray::Ray;
 use crate::sample::Sampler;
 use crate::camera::Camera;
-use crate::object::Sphere;
+use crate::object::Object;
+use crate::geom::{Plane, Sphere};
+use crate::texture::Texture;
 
 pub struct Scene
 {
     camera: Camera,
     lights: Vec<Light>,
-    objects: Vec<Sphere>,
+    objects: Vec<Object>,
 }
 
 impl Scene
 {
-    pub fn new(camera: Camera, lights: Vec<Light>, objects: Vec<Sphere>) -> Self
+    pub fn new(camera: Camera, lights: Vec<Light>, objects: Vec<Object>) -> Self
     {
         Scene { camera, lights, objects }
     }
 
     pub fn new_default() -> Self
     {
+        let sphere = |centre: Point3, radius: Scalar, color: RGBA| -> Object
+        {
+            Object::new(
+                Sphere::new(centre, radius),
+                Material::diffuse(Texture::solid(color)))
+        };
+
+        let metal_sphere = |centre: Point3, radius: Scalar, color: RGBA| -> Object
+        {
+            Object::new(
+                Sphere::new(centre, radius),
+                Material::metal(Texture::solid(color), 0.2))
+        };
+
+        let plane = |point: Point3, normal: Dir3, color: RGBA| -> Object
+        {
+            Object::new(
+                Plane::new(point, normal),
+                Material::metal(Texture::checkerboard(color, RGBA::new(1.0, 1.0, 1.0, 1.0)), 0.2))
+        };
+
         Self::new(
             Camera::new(),
             vec![
@@ -31,21 +55,24 @@ impl Scene
             ],
             vec![
                 // White sphere at the origin
-                Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0, RGBA::new(0.8, 0.8, 0.8, 1.0)),
+                sphere(Point3::new(0.0, 0.0, 0.0), 1.0, RGBA::new(0.8, 0.8, 0.8, 1.0)),
 
                 // Red, green and blue ones around it
-                Sphere::new(Point3::new(0.0, 2.0, 0.0), 1.0, RGBA::new(0.8, 0.0, 0.0, 1.0)),
-                Sphere::new(Point3::new(2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.8, 0.0, 1.0)),
-                Sphere::new(Point3::new(-2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.0, 0.8, 1.0)),
+                sphere(Point3::new(0.0, 2.0, 0.0), 1.0, RGBA::new(0.8, 0.0, 0.8, 1.0)),
+                sphere(Point3::new(2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.8, 0.0, 1.0)),
+                sphere(Point3::new(-2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.0, 0.8, 1.0)),
 
                 // Grey sphere below
-                Sphere::new(Point3::new(0.0, -2.0, 0.0), 1.0, RGBA::new(0.5, 0.5, 0.5, 1.0)),
+                sphere(Point3::new(0.0, -2.0, 0.0), 1.0, RGBA::new(0.5, 0.5, 0.5, 1.0)),
+
+                // Metal spheres
+                metal_sphere(Point3::new(2.50, -2.0, 1.0), 1.25, RGBA::new(0.8, 0.5, 0.8, 1.0)),
 
                 // Ground
-                Sphere::new(Point3::new(0.0, -100.0, 0.0), 95.0, RGBA::new(0.2, 0.2, 0.2, 1.0)),
+                plane(Point3::new(0.0, -3.5, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),
 
                 // Wall behind
-                Sphere::new(Point3::new(0.0, 0.0, -13.0), 10.0, RGBA::new(0.5, 0.584, 0.929, 1.0)),
+                sphere(Point3::new(0.0, 0.0, -13.0), 10.0, RGBA::new(0.5, 0.584, 0.929, 1.0)),
             ])
     }
 
@@ -76,27 +103,39 @@ impl Scene
 
         let mut intersections = intersections
             .drain(..)
-            .filter(|i| i.distance >= EPSILON)
+            .filter(|i| i.surface.distance >= EPSILON)
             .collect::<Vec<_>>();
 
-        intersections.sort_unstable_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
+        intersections.sort_unstable_by(|a, b| a.surface.distance.partial_cmp(&b.surface.distance).unwrap());
 
         match intersections.iter().nth(0)
         {
             Some(intersection) =>
             {
-                // We've hit an object. Calculate a random
-                // diffuse scattering ray, calculcate the light
-                // from this ray, and then absorb light based
-                // on the object's color.
+                // We've hit an object.
+                // Use the object's material to calculate a
+                // random scattering ray and attenuation.
 
-                let scatter_dir = intersection.normal + sampler.uniform_dir_on_unit_sphere();
+                match intersection.material.scatter(sampler, &intersection.surface)
+                {
+                    Some((scatter_ray, attenuation_color)) =>
+                    {
+                        // There's a scattering ray - cast this ray
+                        // to find the incoming light, and then attenuate
+                        // based on the material's color
 
-                let scatter_ray = Ray::new(intersection.location, scatter_dir);
+                        let scattering_light = self.cast_ray(&scatter_ray, depth + 1, sampler);
 
-                let scatter_color = self.cast_ray(&scatter_ray, depth + 1, sampler);
+                        scattering_light.combined_with(&attenuation_color)
+                    },
+                    None =>
+                    {
+                        // This material doesn't scatter.
+                        // There's no incoming light
 
-                intersection.color.combined_with(&scatter_color)
+                        RGBA::new(0.0, 0.0, 0.0, 1.0)
+                    },
+                }
             },
             None =>
             {
