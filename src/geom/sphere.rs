@@ -1,7 +1,7 @@
-use crate::math::{Scalar, EPSILON};
+use crate::math::Scalar;
 use crate::vec::Point3;
-use crate::geom::Surface;
-use crate::intersection::{SurfaceIntersection, SurfaceIntersectionCollector};
+use crate::geom::{Surface, Volume};
+use crate::intersection::SurfaceIntersectionCollector;
 use crate::ray::Ray;
 
 pub struct Sphere
@@ -28,28 +28,40 @@ impl Surface for Sphere
         let c = oc.magnitude_squared() - (self.radius * self.radius);
 
         let discriminant = half_b*half_b - a*c;
-        if discriminant < 0.0
+        if discriminant <= 0.0
         {
             return;
         }
 
         let sqrtd = discriminant.sqrt();
 
-        // Find the nearest root that lies in the acceptable range.
-        let mut root = (-half_b - sqrtd) / a;
-        if root < EPSILON
+        let mut add_intersection = move |distance: Scalar|
         {
-            root = (-half_b + sqrtd) / a;
-            if root < EPSILON
-            {
-                return;
-            }
+            let location = ray.source + (distance * ray.dir);
+            let normal = (location - self.centre) / self.radius;
+    
+            collect((*ray).new_intersection(distance, normal));
+        };
+
+        add_intersection((-half_b - sqrtd) / a);
+        add_intersection((-half_b + sqrtd) / a);
+    }
+}
+
+impl Volume for Sphere
+{
+    fn is_point_inside(&self, point: Point3) -> bool
+    {
+        let dist_squared = (point - self.centre).magnitude_squared();
+        let radius_squared = self.radius * self.radius;
+
+        if self.radius >= 0.0
+        {
+            dist_squared <= radius_squared
         }
-
-        let distance = root;
-        let location = ray.source + (root * ray.dir);
-        let normal = (location - self.centre) / self.radius;
-
-        collect(SurfaceIntersection { ray, distance, normal });
+        else
+        {
+            dist_squared > radius_squared
+        }
     }
 }

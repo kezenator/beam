@@ -40,6 +40,13 @@ impl Scene
                 Material::metal(Texture::solid(color), 0.2))
         };
 
+        let glass_sphere = |centre: Point3, radius: Scalar| -> Object
+        {
+            Object::new(
+                Sphere::new(centre, radius),
+                Material::dielectric(1.5))
+        };
+
         let plane = |point: Point3, normal: Dir3, color: RGBA| -> Object
         {
             Object::new(
@@ -67,6 +74,9 @@ impl Scene
 
                 // Metal spheres
                 metal_sphere(Point3::new(2.50, -2.0, 1.0), 1.25, RGBA::new(0.8, 0.5, 0.8, 1.0)),
+
+                // Glass sphere
+                glass_sphere(Point3::new(-1.5, -2.0, 1.5), 1.25),
 
                 // Ground
                 plane(Point3::new(0.0, -3.5, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),

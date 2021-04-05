@@ -1,7 +1,7 @@
 use crate::math::EPSILON;
 use crate::vec::{Dir3, Point3};
-use crate::geom::Surface;
-use crate::intersection::{SurfaceIntersection, SurfaceIntersectionCollector};
+use crate::geom::{Surface, Volume};
+use crate::intersection::SurfaceIntersectionCollector;
 use crate::ray::Ray;
 
 pub struct Plane
@@ -35,7 +35,16 @@ impl Surface for Plane
             let distance = (self.point - ray.source).dot(self.normal) / denom;
             let normal = self.normal.clone();
 
-            collect(SurfaceIntersection{ ray, distance, normal });
+            collect(ray.new_intersection(distance, normal));
         }
+    }
+}
+impl Volume for Plane
+{
+    fn is_point_inside(&self, point: Point3) -> bool
+    {
+        let dot = (point - self.point).dot(self.normal);
+
+        dot <= 0.0
     }
 }
