@@ -1,6 +1,6 @@
 use crate::math::Scalar;
 use crate::vec::Point3;
-use crate::geom::{Surface, Volume};
+use crate::geom::{Surface, BoundingSurface, Volume};
 use crate::intersection::SurfaceIntersectionCollector;
 use crate::ray::Ray;
 
@@ -45,6 +45,21 @@ impl Surface for Sphere
 
         add_intersection((-half_b - sqrtd) / a);
         add_intersection((-half_b + sqrtd) / a);
+    }
+}
+
+impl BoundingSurface for Sphere
+{
+    fn enters_bounds(&self, ray: &Ray) -> bool
+    {
+        let oc = ray.source - self.centre;
+        let a = ray.dir.magnitude_squared();
+        let half_b = oc.dot(ray.dir.clone());
+        let c = oc.magnitude_squared() - (self.radius * self.radius);
+
+        let discriminant = half_b*half_b - a*c;
+
+        discriminant > 0.0
     }
 }
 

@@ -38,4 +38,9 @@ impl Ray
             }
         }
     }
+
+    pub fn point_at(&self, distance: Scalar) -> Point3
+    {
+        self.source + distance * self.dir
+    }
 }

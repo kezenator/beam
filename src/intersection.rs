@@ -22,7 +22,7 @@ impl<'r> SurfaceIntersection<'r>
 {
     pub fn location(&self) -> Point3
     {
-        self.ray.source + self.distance * self.ray.dir
+        self.ray.point_at(self.distance)
     }
 }
 

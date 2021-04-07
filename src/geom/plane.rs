@@ -39,6 +39,7 @@ impl Surface for Plane
         }
     }
 }
+
 impl Volume for Plane
 {
     fn is_point_inside(&self, point: Point3) -> bool

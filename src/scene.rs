@@ -7,7 +7,7 @@ use crate::ray::Ray;
 use crate::sample::Sampler;
 use crate::camera::Camera;
 use crate::object::Object;
-use crate::geom::{Plane, Sphere};
+use crate::geom::{Plane, Sphere, Rectangle, Blob, BlobPart};
 use crate::texture::Texture;
 
 pub struct Scene
@@ -47,11 +47,52 @@ impl Scene
                 Material::dielectric(1.5))
         };
 
+        let rectangle = |point: Point3, u: Point3, v: Point3| -> Object
+        {
+            Object::new(
+                Rectangle::new(point, u, v),
+                Material::diffuse(Texture::solid(RGBA::new(0.7, 0.7, 0.7, 1.0))))
+        };
+
         let plane = |point: Point3, normal: Dir3, color: RGBA| -> Object
         {
             Object::new(
                 Plane::new(point, normal),
                 Material::metal(Texture::checkerboard(color, RGBA::new(1.0, 1.0, 1.0, 1.0)), 0.2))
+        };
+
+        let cloud = |center: Point3, radius: Scalar, blob_rad: Scalar, num: usize, color: RGBA| -> Object
+        {
+            let mut sampler = Sampler::new_reproducable(0xBAD5EED5DEADBEEFu64);
+            let mut merge = crate::geom::csg::Merge::new();
+
+            for _ in 0..num
+            {
+                let blob_center = center + (radius - blob_rad) * sampler.uniform_dir_on_unit_sphere();
+                
+                merge.push(Sphere::new(blob_center, blob_rad));
+            }
+
+            let bounds = Sphere::new(center, radius);
+
+            Object::new(
+                crate::geom::bounds::BoundedSurface::new(bounds, merge),
+                Material::diffuse(Texture::solid(color)))
+        };
+
+        let blob = |center: Point3, color: RGBA| -> Object
+        {
+            let spacing = 1.5;
+
+            let parts = vec![
+                BlobPart{ center: center, radius: 1.0 },
+                BlobPart{ center: center + Point3::new(0.0, spacing, 0.0), radius: 1.0 },
+                BlobPart{ center: center + Point3::new(0.707 * spacing, 0.5 * spacing, 0.0), radius: 1.0 },
+            ];
+            
+            Object::new(
+                Blob::new(parts, 0.25),
+                Material::diffuse(Texture::solid(color)))
         };
 
         Self::new(
@@ -71,6 +112,14 @@ impl Scene
 
                 // Grey sphere below
                 sphere(Point3::new(0.0, -2.0, 0.0), 1.0, RGBA::new(0.5, 0.5, 0.5, 1.0)),
+
+                // Some more interesting stuff
+                cloud(Point3::new(2.5, 2.5, 2.0), 1.2, 0.2, 400, RGBA::new(0.8, 0.6, 0.3, 1.0)),
+                blob(Point3::new(-2.5, 2.5, 1.0), RGBA::new(0.8, 0.6, 0.3, 1.0)),
+
+                // Rectangular "walls"
+                rectangle(Point3::new(4.0, -3.0, -1.5), Point3::new(0.0, 0.0, 4.0), Point3::new(0.0, 4.0, 0.0)),
+                rectangle(Point3::new(4.0, -3.0, -1.5), Point3::new(-4.0, 0.0, 0.0), Point3::new(0.0, 4.0, 0.0)),
 
                 // Metal spheres
                 metal_sphere(Point3::new(2.50, -2.0, 1.0), 1.25, RGBA::new(0.8, 0.5, 0.8, 1.0)),
