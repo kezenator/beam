@@ -5,7 +5,7 @@ use crate::sample::Sampler;
 
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use rand::{thread_rng, seq::SliceRandom};
+use rand::{thread_rng, RngCore, seq::SliceRandom};
 use rayon::prelude::*;
 
 pub struct RenderOptions
@@ -229,16 +229,26 @@ fn render_pass(width: u32, height: u32, step: u32, all_pixels: bool, samples_per
     {
         let scene = Scene::new_default();
 
-        let mut sampler = Sampler::new();
+        let mut sampler = Sampler::new_reproducable(thread_rng().next_u64());
     
         let mut color = color::RGBA::new(0.0, 0.0, 0.0, 1.0);
 
-        for _ in 0..samples_per_pixel
+        if samples_per_pixel == 1
         {
-            let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (width as Scalar);
-            let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (height as Scalar);
+            let u = (update.x as Scalar) / (width as Scalar);
+            let v = (update.y as Scalar) / (height as Scalar);
 
-            color = color + scene.sample_pixel(u, v, &mut sampler);
+            color = scene.quick_trace_pixel(u, v, &mut sampler);
+        }
+        else
+        {
+            for _ in 0..samples_per_pixel
+            {
+                let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (width as Scalar);
+                let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (height as Scalar);
+
+                color = color + scene.path_trace_pixel(u, v, &mut sampler);
+            }
         }
 
         let update =  PixelUpdate

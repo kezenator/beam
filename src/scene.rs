@@ -1,6 +1,7 @@
 use crate::math::{EPSILON, Scalar};
 use crate::vec::{Dir3, Point3};
 use crate::color::RGBA;
+use crate::intersection::ObjectIntersection;
 use crate::light::Light;
 use crate::material::Material;
 use crate::ray::Ray;
@@ -14,14 +15,15 @@ pub struct Scene
 {
     camera: Camera,
     lights: Vec<Light>,
+    local_light: Point3,
     objects: Vec<Object>,
 }
 
 impl Scene
 {
-    pub fn new(camera: Camera, lights: Vec<Light>, objects: Vec<Object>) -> Self
+    pub fn new(camera: Camera, lights: Vec<Light>, local_light: Point3, objects: Vec<Object>) -> Self
     {
-        Scene { camera, lights, objects }
+        Scene { camera, lights, local_light, objects }
     }
 
     pub fn new_default() -> Self
@@ -101,6 +103,9 @@ impl Scene
                 Light::ambient(RGBA::new(0.1, 0.1, 0.1, 1.0)),
                 Light::directional(RGBA::new(0.9, 0.9, 0.9, 1.0), Dir3::new(0.0, 0.0, -1.0)),
             ],
+            // Local light
+            Point3::new(1.0, 6.0, 12.0),
+            // Objects
             vec![
                 // White sphere at the origin
                 sphere(Point3::new(0.0, 0.0, 0.0), 1.0, RGBA::new(0.8, 0.8, 0.8, 1.0)),
@@ -128,21 +133,28 @@ impl Scene
                 glass_sphere(Point3::new(-1.5, -2.0, 1.5), 1.25),
 
                 // Ground
-                plane(Point3::new(0.0, -3.5, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),
+                plane(Point3::new(0.0, -3.51, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),
 
                 // Wall behind
                 sphere(Point3::new(0.0, 0.0, -13.0), 10.0, RGBA::new(0.5, 0.584, 0.929, 1.0)),
             ])
     }
 
-    pub fn sample_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler) -> RGBA
+    pub fn path_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler) -> RGBA
     {
         let ray = self.camera.get_ray(u, v);
 
-        self.cast_ray(&ray, 0, sampler)
+        self.cast_ray_global(&ray, 0, sampler)
     }
 
-    fn cast_ray(&self, ray: &Ray, depth: usize, sampler: &mut Sampler) -> RGBA
+    pub fn quick_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler) -> RGBA
+    {
+        let ray = self.camera.get_ray(u, v);
+
+        self.cast_ray_local(&ray, 0, sampler)
+    }
+
+    fn cast_ray_global(&self, ray: &Ray, depth: usize, sampler: &mut Sampler) -> RGBA
     {
         if depth > 50
         {
@@ -153,21 +165,7 @@ impl Scene
             return RGBA::new(0.0, 0.0, 0.0, 1.0);
         }
 
-        let mut intersections = Vec::new();
-
-        for obj in self.objects.iter()
-        {
-            obj.get_intersections(&ray, &mut intersections);
-        }
-
-        let mut intersections = intersections
-            .drain(..)
-            .filter(|i| i.surface.distance >= EPSILON)
-            .collect::<Vec<_>>();
-
-        intersections.sort_unstable_by(|a, b| a.surface.distance.partial_cmp(&b.surface.distance).unwrap());
-
-        match intersections.iter().nth(0)
+        match self.trace_intersection(ray)
         {
             Some(intersection) =>
             {
@@ -183,7 +181,7 @@ impl Scene
                         // to find the incoming light, and then attenuate
                         // based on the material's color
 
-                        let scattering_light = self.cast_ray(&scatter_ray, depth + 1, sampler);
+                        let scattering_light = self.cast_ray_global(&scatter_ray, depth + 1, sampler);
 
                         scattering_light.combined_with(&attenuation_color)
                     },
@@ -211,5 +209,87 @@ impl Scene
                 color
             },
         }
+    }
+
+    fn cast_ray_local(&self, ray: &Ray, depth: usize, sampler: &mut Sampler) -> RGBA
+    {
+        match self.trace_intersection(ray)
+        {
+            Some(intersection) =>
+            {
+                // We've hit an object.
+                // Use the object's material to get a
+                // quick color
+
+                let (color, onwards_ray) = intersection.material.local(&intersection.surface);
+
+                if onwards_ray.is_none() || depth >= 5
+                {
+                    // Either no onwards ray, or we've already traced too many
+                    // rays to get to this point - just return the color
+                    // with a *really basic* lighting equation
+
+                    // Ambient
+                    let mut amount = 0.2;
+
+                    // Basic diffuse
+                    let int_location = intersection.surface.location();
+                    let light_dir = (self.local_light - int_location).normalized();
+                    let diffuse = intersection.surface.normal.dot(light_dir);
+                    if diffuse > 0.0
+                    {
+                        if self.trace_intersection(&Ray::new(int_location, light_dir)).is_some()
+                        {
+                            // There's a object blocking the light
+                            amount += 0.2 * diffuse;
+                        }
+                        else
+                        {
+                            // The object is illuminated by the light
+                            amount += 0.8 * diffuse;
+                        }
+                    }
+
+                    color.multiplied_by_scalar(amount)
+                }
+                else
+                {
+                    // Cast the onwards ray, and then combine it with
+                    // the color of this surface
+
+                    let onwards_color = self.cast_ray_local(&onwards_ray.unwrap(), depth + 1, sampler);
+
+                    onwards_color.combined_with(&color)
+                }
+            },
+            None =>
+            {
+                // No intersections - just return a
+                // dull background
+
+                RGBA::new(0.2, 0.2, 0.2, 1.0)
+            },
+        }
+    }
+
+    fn trace_intersection<'r, 'm>(&'m self, ray: &'r Ray) -> Option<ObjectIntersection<'r, 'm>>
+    {
+        let mut intersections = Vec::new();
+
+        for obj in self.objects.iter()
+        {
+            obj.get_intersections(&ray, &mut intersections);
+        }
+
+        let mut intersections = intersections
+            .drain(..)
+            .filter(|i| i.surface.distance >= EPSILON)
+            .collect::<Vec<_>>();
+
+        intersections.sort_unstable_by(|a, b| a.surface.distance.partial_cmp(&b.surface.distance).unwrap());
+
+        let found = intersections.drain(..).nth(0);
+
+        found
     }
 }

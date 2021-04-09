@@ -90,11 +90,58 @@ impl Material
 
                 let unit_direction = intersection.ray.dir.normalized();
 
-                let new_dir = refract_or_reflect(sampler, unit_direction, intersection.normal, refraction_ratio);
+                let new_dir = refract_or_reflect(unit_direction, intersection.normal, refraction_ratio, sampler.uniform_scalar_unit());
 
                 let new_ray = Ray::new(intersection.location(), new_dir);                
 
                 Some((new_ray, RGBA::new(1.0, 1.0, 1.0, 1.0)))
+            },
+        }
+    }
+
+    pub fn local<'r>(&self, intersection: &SurfaceIntersection<'r>) -> (RGBA, Option<Ray>)
+    {
+        match self
+        {
+            Material::Diffuse(texture) =>
+            {
+                // Just return the texture color, with
+                // no onwards ray tracing
+
+                (texture.get_color_at(intersection.location()), None)
+            },
+            Material::Metal(texture, _) =>
+            {
+                // Trace the reflected ray attenuated by
+                // the texture color
+
+                let texture_color = texture.get_color_at(intersection.location());
+
+                let reflected_dir = reflect(intersection.ray.dir, intersection.normal);
+                let reflected_ray = Ray::new(intersection.location(), reflected_dir);
+
+                (texture_color, Some(reflected_ray))
+            },
+            Material::Dielectric(ior) =>
+            {
+                // Trace the refracted ray, attenuated by
+                // a fixed color near white
+
+                let color = RGBA::new(0.95, 0.95, 0.95, 1.0);
+
+                let refraction_ratio = if intersection.face == Face::FrontFace
+                {
+                    1.0 / ior
+                }
+                else
+                {
+                    *ior
+                };
+
+                let refracted_dir = refract_or_reflect(intersection.ray.dir.normalized(), intersection.normal, refraction_ratio, 1.0);
+                let refracted_ray = Ray::new(intersection.location(), refracted_dir);
+
+                (color, Some(refracted_ray))
             },
         }
     }
@@ -117,7 +164,7 @@ fn reflect(incoming: Dir3, normal: Dir3) -> Dir3
     incoming - ((2.0 * incoming.dot(normal)) * normal)
 }
 
-fn refract_or_reflect(sampler: &mut Sampler, incoming: Dir3, normal: Dir3, refraction_ratio: Scalar) -> Dir3
+fn refract_or_reflect(incoming: Dir3, normal: Dir3, refraction_ratio: Scalar, no_reflection_chance: Scalar) -> Dir3
 {
     // From https://raytracing.github.io/books/RayTracingInOneWeekend.html#dielectrics
 
@@ -128,7 +175,7 @@ fn refract_or_reflect(sampler: &mut Sampler, incoming: Dir3, normal: Dir3, refra
     let cannot_refract = refraction_ratio * sin_theta > 1.0;
 
     if cannot_refract
-        || reflectance(cos_theta, refraction_ratio) > sampler.uniform_scalar_unit()
+        || reflectance(cos_theta, refraction_ratio) > no_reflection_chance
     {
         reflect(incoming, normal)
     }
