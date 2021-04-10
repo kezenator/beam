@@ -32,7 +32,7 @@ fn main() -> Result<(), String>
 
     let texture_creator = canvas.texture_creator();
 
-    let mut renderer = Renderer::new(RenderOptions::new(WIDTH, HEIGHT));
+    let renderer = Renderer::new(RenderOptions::new(WIDTH, HEIGHT));
 
     canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
@@ -59,28 +59,25 @@ fn main() -> Result<(), String>
             }
         }
 
-        for update in renderer.get_updates()
+        if let Some(update) = renderer.get_update()
         {
-            surface.fill_rect(
-                sdl2::rect::Rect::new(update.x as i32, update.y as i32, update.width, update.height),
-                sdl2::pixels::Color::from(update.color.to_u8_tuple()))?;
+            for pixel in update.pixels
+            {
+                surface.fill_rect(
+                    sdl2::rect::Rect::new(pixel.x as i32, pixel.y as i32, pixel.width, pixel.height),
+                    sdl2::pixels::Color::from(pixel.color.to_u8_tuple()))?;
+            }
+
+            canvas.window_mut().set_title(&format!("Beam - {}", update.progress)).expect("Could not set window title");
         }
 
-        canvas.window_mut().set_title(&format!("Beam - {}", renderer.get_progress_str())).expect("Could not set window title");
 
         let texture = surface.as_texture(&texture_creator).unwrap();
         canvas.copy(&texture, None, None)?;
 
         canvas.present();
 
-        if renderer.is_complete()
-        {
-            ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 20));
-        }
-        else
-        {
-            ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        }
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 
     Ok(())
