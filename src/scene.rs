@@ -26,7 +26,7 @@ impl Scene
         Scene { camera, lights, local_light, objects }
     }
 
-    pub fn new_default() -> Self
+    pub fn new_default(width: u32, height: u32) -> Self
     {
         let sphere = |centre: Point3, radius: Scalar, color: RGBA| -> Object
         {
@@ -98,7 +98,7 @@ impl Scene
         };
 
         Self::new(
-            Camera::new(),
+            Camera::new(width, height),
             vec![
                 Light::ambient(RGBA::new(0.1, 0.1, 0.1, 1.0)),
                 Light::directional(RGBA::new(0.9, 0.9, 0.9, 1.0), Dir3::new(0.0, 0.0, -1.0)),

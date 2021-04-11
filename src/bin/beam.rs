@@ -7,8 +7,8 @@ use beam::render::{Renderer, RenderOptions};
 
 fn main() -> Result<(), String>
 {
-    const WIDTH: u32 = 1500;
-    const HEIGHT: u32 = 1500;
+    const WIDTH: u32 = 1920;
+    const HEIGHT: u32 = 1080;
 
     unsafe
     {
@@ -39,13 +39,8 @@ fn main() -> Result<(), String>
     canvas.present();
 
     let mut event_pump = sdl_context.event_pump()?;
-    let mut i = 0;
     'running: loop
     {
-        i = (i + 1) % 255;
-        canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
-        canvas.clear();
-
         for event in event_pump.poll_iter()
         {
             match event
@@ -74,7 +69,6 @@ fn main() -> Result<(), String>
 
         let texture = surface.as_texture(&texture_creator).unwrap();
         canvas.copy(&texture, None, None)?;
-
         canvas.present();
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));

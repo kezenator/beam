@@ -11,18 +11,18 @@ pub struct Camera
 
 impl Camera
 {
-    pub fn new() -> Self
+    pub fn new(width: u32, height: u32) -> Self
     {
         let location = Point3::new(-3.0, 12.0, 12.0);
-        let look_at = Point3::new(0.0, 0.0, 0.0);
+        let look_at = Point3::new(0.0, -1.0, 0.0);
         let up = Point3::new(0.0, 1.0, 0.0);
-        let fov = 30.0;
-        let aspect_ratio = 1.0;
+        let fov = 40.0;
+        let aspect_ratio = (width as f64) / (height as f64);
 
         let theta = crate::math::degrees_to_radians(fov);
-        let h = (theta / 2.0).tan();
-        let viewport_height = 2.0 * h;
-        let viewport_width = aspect_ratio * viewport_height;
+        let w = (theta / 2.0).tan();
+        let viewport_width = 2.0 * w;
+        let viewport_height = viewport_width / aspect_ratio;
 
         let w = (location - look_at).normalized();
         let u = up.cross(w).normalized();

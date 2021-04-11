@@ -90,11 +90,13 @@ struct RenderState
     local_duration: Duration,
     global_samples: u64,
     global_duration: Duration,
+    completed_global_samples_per_pixel: usize,
+    pixels: Vec<color::RGBA>,
 }
 
 impl RenderState
 {
-    fn new() -> Self
+    fn new(options: &RenderOptions) -> Self
     {
         RenderState
         {
@@ -102,13 +104,15 @@ impl RenderState
             local_duration: Duration::default(),
             global_samples: 0,
             global_duration: Duration::default(),
+            completed_global_samples_per_pixel: 0,
+            pixels: vec![color::RGBA::new(0.0, 0.0, 0.0, 1.0); (options.width as usize) * (options.height as usize)],
         }
     }
 }
 
 fn render_thread(options: RenderOptions, sender: Sender<RenderUpdate>)
 {
-    let mut state = RenderState::new();
+    let mut state = RenderState::new(&options);
 
     // First, do a quick pass with local lighting
     // down to half the resolution
@@ -130,7 +134,7 @@ fn render_thread(options: RenderOptions, sender: Sender<RenderUpdate>)
     // Now sample all pixels, with global lighting
     // at increasing samples per pixel
 
-    for samples in [1, 8, 64, 1000].iter()
+    for samples in [1, 8, 32, 128, 512, 2048].iter()
     {
         if !render_pass(&options, &mut state, 1, true, *samples, true, &sender)
         {
@@ -222,12 +226,14 @@ fn render_pass(options: &RenderOptions, state: &mut RenderState, step: u32, all_
 
     let (sub_sender, sub_receiver) = crossbeam::channel::unbounded();
 
+    let new_samples_per_pixel = if global_illum { samples_per_pixel - state.completed_global_samples_per_pixel } else { samples_per_pixel };
+
     let spawn_thread = |chunks: Vec<Vec<PixelRect>>| -> JoinHandle<()>
     {
         let thread_sender = sub_sender.clone();
         let thread_options = options.clone();
 
-        std::thread::spawn(move || render_pixel_thread(thread_options, samples_per_pixel, global_illum, chunks, thread_sender))
+        std::thread::spawn(move || render_pixel_thread(thread_options, new_samples_per_pixel, global_illum, chunks, thread_sender))
     };
 
     let join_handles: Vec<JoinHandle<()>> = chunks
@@ -249,19 +255,41 @@ fn render_pass(options: &RenderOptions, state: &mut RenderState, step: u32, all_
 
         while let Ok(chunk) = sub_receiver.try_recv()
         {
+            let duration = chunk.duration;
+            let mut new_pixels = chunk.pixels;
+
             if global_illum
             {
-                state.global_samples += (chunk.pixels.len() as u64) * (samples_per_pixel as u64);
-                state.global_duration += chunk.duration;
+                state.global_samples += (new_pixels.len() as u64) * (new_samples_per_pixel as u64);
+                state.global_duration += duration;
+
+                for mut pixel in new_pixels.iter_mut()
+                {
+                    let x = pixel.rect.x;
+                    let y = pixel.rect.y;
+                    let index = (y * options.width + x) as usize;
+
+                    let sum = state.pixels[index].clone();
+                    let sum = sum + pixel.color.clone();
+
+                    state.pixels[index] = sum.clone();
+
+                    pixel.color = sum.divided_by_scalar(samples_per_pixel as Scalar).gamma_corrected_2();
+                }
             }
             else
             {
-                state.local_samples += (chunk.pixels.len() as u64) * (samples_per_pixel as u64);
-                state.local_duration += chunk.duration;
+                state.local_samples += (new_pixels.len() as u64) * (new_samples_per_pixel as u64);
+                state.local_duration += duration;
+
+                for mut pixel in new_pixels.iter_mut()
+                {
+                    pixel.color = pixel.color.gamma_corrected_2();
+                }
             }
 
             collected_chunks += 1;
-            pixels.extend(chunk.pixels);
+            pixels.extend(new_pixels);
         }
 
         let timing = format!(" [{} global, {} local]",
@@ -299,6 +327,13 @@ fn render_pass(options: &RenderOptions, state: &mut RenderState, step: u32, all_
         }
     }
 
+    // Mark how many samples have been completed
+
+    if global_illum
+    {
+        state.completed_global_samples_per_pixel = samples_per_pixel;
+    }
+
     // All results collected - wait for the
     // threads to complete and return that it was
     // completed successfully.
@@ -325,9 +360,9 @@ fn time_per_sample(duration: &Duration, samples: &u64) -> String
     format!("{:.2} us/sample", tps * 1000000.0)
 }
 
-fn render_pixel_thread(options: RenderOptions, samples_per_pixel: usize, global_illum: bool, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
+fn render_pixel_thread(options: RenderOptions, new_samples_per_pixel: usize, global_illum: bool, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
 {
-    let scene = Scene::new_default();
+    let scene = Scene::new_default(options.width, options.height);
     let mut sampler = Sampler::new_reproducable(thread_rng().next_u64());
 
     for updates in updates.into_iter()
@@ -336,7 +371,7 @@ fn render_pixel_thread(options: RenderOptions, samples_per_pixel: usize, global_
 
         let pixels = updates
             .into_iter()
-            .map(|update| calculate_update(&options, &scene, &mut sampler, samples_per_pixel, global_illum, update))
+            .map(|update| calculate_update(&options, &scene, &mut sampler, new_samples_per_pixel, global_illum, update))
             .collect::<Vec<PixelUpdate>>();
 
         let duration = now.elapsed();
@@ -355,7 +390,7 @@ fn render_pixel_thread(options: RenderOptions, samples_per_pixel: usize, global_
     }
 }
 
-fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sampler, samples_per_pixel: usize, global_illum: bool, update: PixelRect) -> PixelUpdate
+fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sampler, new_samples_per_pixel: usize, global_illum: bool, update: PixelRect) -> PixelUpdate
 {
     let mut color = color::RGBA::new(0.0, 0.0, 0.0, 1.0);
 
@@ -368,7 +403,7 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
     }
     else
     {
-        for _ in 0..samples_per_pixel
+        for _ in 0..new_samples_per_pixel
         {
             let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (options.width as Scalar);
             let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (options.height as Scalar);
@@ -380,6 +415,6 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
     PixelUpdate
     {
         rect: update,
-        color: color.divided_by_scalar(samples_per_pixel as Scalar).gamma_corrected_2(),
+        color: color,
     }
 }
