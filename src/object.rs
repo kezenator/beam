@@ -1,7 +1,7 @@
 use crate::geom::Surface;
-use crate::intersection::{ObjectIntersection, SurfaceIntersection};
+use crate::intersection::ObjectIntersection;
 use crate::material::Material;
-use crate::ray::Ray;
+use crate::ray::{Ray, RayRange};
 
 pub struct Object
 {
@@ -21,17 +21,22 @@ impl Object
         }
     }
 
-    pub fn get_intersections<'r, 'm>(&'m self, ray: &'r Ray, intersections: &mut Vec<ObjectIntersection<'r, 'm>>)
+    pub fn closest_intersection_in_range<'r, 'm>(&'m self, ray: &'r Ray, range: &RayRange) -> Option<ObjectIntersection<'r, 'm>>
     {
-        let mut collector = move |si: SurfaceIntersection<'r>|
+        match self.surface.closest_intersection_in_range(ray, range)
         {
-            intersections.push(ObjectIntersection
+            Some(si) =>
             {
-                surface: si,
-                material: &self.material,
-            });
-        };
-
-        self.surface.get_intersections(ray, &mut collector);
+                Some(ObjectIntersection
+                {
+                    surface: si,
+                    material: &self.material,
+                })
+            },
+            None =>
+            {
+                None
+            },
+        }
     }
 }

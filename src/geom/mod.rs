@@ -1,5 +1,5 @@
-use crate::intersection::SurfaceIntersectionCollector;
-use crate::ray::Ray;
+use crate::intersection::SurfaceIntersection;
+use crate::ray::{Ray, RayRange};
 use crate::vec::Point3;
 
 pub mod blob;
@@ -17,7 +17,7 @@ pub use sphere::Sphere;
 
 pub trait Surface
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collect: &'c mut SurfaceIntersectionCollector<'r, 'c>);
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>;
 }
 
 pub trait BoundingSurface: Surface

@@ -4,7 +4,7 @@ use crate::color::RGBA;
 use crate::intersection::ObjectIntersection;
 use crate::light::Light;
 use crate::material::Material;
-use crate::ray::Ray;
+use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::camera::Camera;
 use crate::object::Object;
@@ -274,22 +274,18 @@ impl Scene
 
     fn trace_intersection<'r, 'm>(&'m self, ray: &'r Ray) -> Option<ObjectIntersection<'r, 'm>>
     {
-        let mut intersections = Vec::new();
+        let mut range = RayRange::new(EPSILON, Scalar::INFINITY);
+        let mut closest = None;
 
         for obj in self.objects.iter()
         {
-            obj.get_intersections(&ray, &mut intersections);
+            if let Some(intersection) = obj.closest_intersection_in_range(ray, &range)
+            {
+                range.update_max(intersection.surface.distance);
+                closest = Some(intersection);
+            }
         }
 
-        let mut intersections = intersections
-            .drain(..)
-            .filter(|i| i.surface.distance >= EPSILON)
-            .collect::<Vec<_>>();
-
-        intersections.sort_unstable_by(|a, b| a.surface.distance.partial_cmp(&b.surface.distance).unwrap());
-
-        let found = intersections.drain(..).nth(0);
-
-        found
+        closest
     }
 }

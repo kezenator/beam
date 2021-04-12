@@ -7,7 +7,7 @@ use std::time::{Instant, Duration};
 use std::thread::JoinHandle;
 use crossbeam::channel::{Sender};
 use itertools::Itertools;
-use rand::{thread_rng, RngCore, seq::SliceRandom};
+use rand::{thread_rng, seq::SliceRandom};
 
 #[derive(Clone)]
 pub struct RenderOptions
@@ -363,7 +363,7 @@ fn time_per_sample(duration: &Duration, samples: &u64) -> String
 fn render_pixel_thread(options: RenderOptions, new_samples_per_pixel: usize, global_illum: bool, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
 {
     let scene = Scene::new_default(options.width, options.height);
-    let mut sampler = Sampler::new_reproducable(thread_rng().next_u64());
+    let mut sampler = Sampler::new();
 
     for updates in updates.into_iter()
     {

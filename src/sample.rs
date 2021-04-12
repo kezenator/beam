@@ -5,7 +5,7 @@ use rand::{thread_rng, Rng, RngCore, SeedableRng};
 
 pub struct Sampler
 {
-    rng: Box<dyn RngCore>,
+    rng: rand::rngs::SmallRng,
     dist_uniform_scalar_unit: rand::distributions::Uniform<Scalar>,
 }
 
@@ -15,7 +15,7 @@ impl Sampler
     {
         Sampler
         {
-            rng: Box::new(thread_rng()),
+            rng: rand::rngs::SmallRng::seed_from_u64(thread_rng().next_u64()),
             dist_uniform_scalar_unit: rand::distributions::Uniform::new(0.0, 1.0),
         }
     }
@@ -24,7 +24,7 @@ impl Sampler
     {
         Sampler
         {
-            rng: Box::new(rand::rngs::SmallRng::seed_from_u64(seed)),
+            rng: rand::rngs::SmallRng::seed_from_u64(seed),
             dist_uniform_scalar_unit: rand::distributions::Uniform::new(0.0, 1.0),
         }
     }

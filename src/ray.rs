@@ -1,4 +1,4 @@
-use crate::math::Scalar;
+use crate::math::{EPSILON, Scalar};
 use crate::intersection::{Face, SurfaceIntersection};
 use crate::vec::{Dir3, Point3};
 
@@ -42,5 +42,49 @@ impl Ray
     pub fn point_at(&self, distance: Scalar) -> Point3
     {
         self.source + distance * self.dir
+    }
+}
+
+#[derive(Clone)]
+pub struct RayRange
+{
+    min: Scalar,
+    max: Scalar,
+}
+
+impl RayRange
+{
+    pub fn new(min: Scalar, max: Scalar) -> Self
+    {
+        RayRange
+        {
+            min,
+            max,
+        }
+    }
+
+    pub fn intersection(&self, other: &RayRange) -> Option<Self>
+    {
+        let min = self.min.max(other.min);
+        let max = self.max.min(other.max);
+
+        if min < max
+        {
+            Some(RayRange{ min, max })
+        }
+        else
+        {
+            None
+        }
+    }
+
+    pub fn contains(&self, val: Scalar) -> bool
+    {
+        val > self.min && val < self.max
+    }
+
+    pub fn update_max(&mut self, max: Scalar)
+    {
+        self.max = max;
     }
 }

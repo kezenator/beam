@@ -1,8 +1,8 @@
 use crate::math::{EPSILON, Scalar};
 use crate::vec::{Dir3, Point3};
 use crate::geom::Surface;
-use crate::intersection::SurfaceIntersectionCollector;
-use crate::ray::Ray;
+use crate::intersection::SurfaceIntersection;
+use crate::ray::{Ray, RayRange};
 
 pub struct Rectangle
 {
@@ -30,7 +30,7 @@ impl Rectangle
 
 impl Surface for Rectangle
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collect: &'c mut SurfaceIntersectionCollector<'r, 'c>)
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
         // When the ray intersection is on the plane, the dot
         // product of the location will be zero.
@@ -44,18 +44,25 @@ impl Surface for Rectangle
         {
             let distance = (self.point - ray.source).dot(self.normal) / denom;
 
-            // Now, work out if this is in the rectangle
-            
-            let int_offset = ray.point_at(distance) - self.point;
-            let int_u = int_offset.dot(self.dir_u);
-            let int_v = int_offset.dot(self.dir_v);
+            // Work out if an intersection at this distance is wanted
 
-            if int_u >= 0.0 && int_u <= self.len_u && int_v >= 0.0 && int_v <= self.len_v
+            if range.contains(distance)
             {
-                let normal = self.normal.clone();
+                // Now, work out if this is in the rectangle
+                
+                let int_offset = ray.point_at(distance) - self.point;
+                let int_u = int_offset.dot(self.dir_u);
+                let int_v = int_offset.dot(self.dir_v);
 
-                collect(ray.new_intersection(distance, normal));
+                if int_u >= 0.0 && int_u <= self.len_u && int_v >= 0.0 && int_v <= self.len_v
+                {
+                    let normal = self.normal.clone();
+
+                    return Some(ray.new_intersection(distance, normal))
+                }
             }
         }
+
+        None
     }
 }

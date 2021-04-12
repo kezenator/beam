@@ -1,8 +1,8 @@
 use crate::math::Scalar;
 use crate::vec::Point3;
 use crate::geom::{Surface, BoundingSurface, Volume};
-use crate::intersection::SurfaceIntersectionCollector;
-use crate::ray::Ray;
+use crate::intersection::SurfaceIntersection;
+use crate::ray::{Ray, RayRange};
 
 pub struct Sphere
 {
@@ -20,7 +20,7 @@ impl Sphere
 
 impl Surface for Sphere
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collect: &'c mut SurfaceIntersectionCollector<'r, 'c>)
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
         let oc = ray.source - self.centre;
         let a = ray.dir.magnitude_squared();
@@ -30,21 +30,32 @@ impl Surface for Sphere
         let discriminant = half_b*half_b - a*c;
         if discriminant <= 0.0
         {
-            return;
+            return None;
         }
 
         let sqrtd = discriminant.sqrt();
 
-        let mut add_intersection = move |distance: Scalar|
+        let distance = (-half_b - sqrtd) / a;
+
+        if range.contains(distance)
         {
             let location = ray.source + (distance * ray.dir);
             let normal = (location - self.centre) / self.radius;
     
-            collect((*ray).new_intersection(distance, normal));
-        };
+            return Some(ray.new_intersection(distance, normal));
+        }
 
-        add_intersection((-half_b - sqrtd) / a);
-        add_intersection((-half_b + sqrtd) / a);
+        let distance = (-half_b + sqrtd) / a;
+
+        if range.contains(distance)
+        {
+            let location = ray.source + (distance * ray.dir);
+            let normal = (location - self.centre) / self.radius;
+    
+            return Some(ray.new_intersection(distance, normal));
+        }
+
+        None
     }
 }
 

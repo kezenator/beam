@@ -1,8 +1,8 @@
 use crate::math::EPSILON;
 use crate::vec::{Dir3, Point3};
 use crate::geom::{Surface, Volume};
-use crate::intersection::SurfaceIntersectionCollector;
-use crate::ray::Ray;
+use crate::intersection::SurfaceIntersection;
+use crate::ray::{Ray, RayRange};
 
 pub struct Plane
 {
@@ -20,7 +20,7 @@ impl Plane
 
 impl Surface for Plane
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collect: &'c mut SurfaceIntersectionCollector<'r, 'c>)
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
         // When the ray intersection is on the plane, the dot
         // product of the location will be zero.
@@ -33,10 +33,16 @@ impl Surface for Plane
         if denom.abs() > EPSILON
         {
             let distance = (self.point - ray.source).dot(self.normal) / denom;
-            let normal = self.normal.clone();
 
-            collect(ray.new_intersection(distance, normal));
+            if range.contains(distance)
+            {
+                let normal = self.normal.clone();
+
+                return Some(ray.new_intersection(distance, normal));
+            }
         }
+
+        None
     }
 }
 

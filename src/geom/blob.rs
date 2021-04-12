@@ -1,8 +1,8 @@
 use float_ord::FloatOrd;
 
-use crate::geom::{BoundedSurface, Sphere, Surface, SurfaceIntersectionCollector};
+use crate::geom::{BoundedSurface, Sphere, Surface, SurfaceIntersection};
 use crate::math::{EPSILON, Scalar};
-use crate::ray::Ray;
+use crate::ray::{Ray, RayRange};
 use crate::vec::{Dir3, Point3};
 
 pub struct Blob
@@ -104,7 +104,7 @@ impl Blob
 
 impl Surface for Blob
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collect: &'c mut SurfaceIntersectionCollector<'r, 'c>)
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
         // First, get the interesting points along the ray
 
@@ -112,7 +112,6 @@ impl Surface for Blob
 
         if !points.is_empty()
         {
-
             let mut indexes = Vec::new();
 
             let mut cur_dist = points[0].distance;
@@ -134,10 +133,12 @@ impl Surface for Blob
                 let next_val = self.value_at(ray.point_at(next_dist), &indexes);
 
                 if cur_val.signum() != next_val.signum()
+                    && range.intersection(&RayRange::new(cur_dist, next_dist)).is_some()
                 {
-                    // We've passed through zero between these points -
-                    // Do a binary search for the location, and then add
-                    // an intersection at this point.
+                    // We've passed through zero between these points and
+                    // this range of distances intersects requested ray range -
+                    // Do a binary search for the location, and return if
+                    // an intersection is found.
 
                     let mut a = cur_dist;
                     let mut b = next_dist;
@@ -159,9 +160,13 @@ impl Surface for Blob
                     }
 
                     let distance = (a + b) / 2.0;
-                    let normal = self.normal_at(ray.point_at(distance), &indexes);
 
-                    collect(ray.new_intersection(distance, normal));
+                    if range.contains(distance)
+                    {
+                        let normal = self.normal_at(ray.point_at(distance), &indexes);
+
+                        return Some(ray.new_intersection(distance, normal));
+                    }
                 }
 
                 if point.event == BlobPartIntersectionEvent::Exit
@@ -173,6 +178,8 @@ impl Surface for Blob
                 cur_val = next_val;
             }
         }
+
+        None
     }
 }
 

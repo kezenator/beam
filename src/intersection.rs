@@ -26,8 +26,6 @@ impl<'r> SurfaceIntersection<'r>
     }
 }
 
-pub type SurfaceIntersectionCollector<'r, 'c> = dyn FnMut(SurfaceIntersection<'r>) + 'c;
-
 pub struct ObjectIntersection<'r, 'm>
 {
     pub surface: SurfaceIntersection<'r>,

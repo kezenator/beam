@@ -1,5 +1,5 @@
-use crate::geom::{Surface, SurfaceIntersectionCollector};
-use crate::ray::Ray;
+use crate::geom::{Surface, SurfaceIntersection};
+use crate::ray::{Ray, RayRange};
 
 pub struct Merge
 {
@@ -21,11 +21,20 @@ impl Merge
 
 impl Surface for Merge
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collector: &'c mut SurfaceIntersectionCollector<'r, 'c>)
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
+        let mut range = range.clone();
+        let mut closest = None;
+
         for s in self.surfaces.iter()
         {
-            s.get_intersections(ray, collector);
+            if let Some(intersection) = s.closest_intersection_in_range(ray, &range)
+            {
+                range.update_max(intersection.distance);
+                closest = Some(intersection);
+            }
         }
+
+        closest
     }
 }

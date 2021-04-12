@@ -1,5 +1,5 @@
-use crate::geom::{BoundingSurface, Surface, SurfaceIntersectionCollector};
-use crate::ray::Ray;
+use crate::geom::{BoundingSurface, Surface, SurfaceIntersection};
+use crate::ray::{Ray, RayRange};
 
 pub struct BoundedSurface<B: BoundingSurface, S: Surface>
 {
@@ -17,11 +17,15 @@ impl<B: BoundingSurface, S: Surface> BoundedSurface<B, S>
 
 impl<B: BoundingSurface, S: Surface> Surface for BoundedSurface<B, S>
 {
-    fn get_intersections<'r, 'c>(&self, ray: &'r Ray, collect: &'c mut SurfaceIntersectionCollector<'r, 'c>)
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
         if self.bounds.enters_bounds(ray)
         {
-            self.surface.get_intersections(ray, collect);
+            self.surface.closest_intersection_in_range(ray, range)
+        }
+        else
+        {
+            None
         }
     }
 }
