@@ -2,6 +2,7 @@ use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 use crate::vec::Point3;
 
+pub mod aabb;
 pub mod blob;
 pub mod bounds;
 pub mod csg;
@@ -9,6 +10,7 @@ pub mod plane;
 pub mod rectangle;
 pub mod sphere;
 
+pub use aabb::AABB;
 pub use blob::{Blob, BlobPart};
 pub use bounds::BoundedSurface;
 pub use plane::Plane;
@@ -22,7 +24,7 @@ pub trait Surface
 
 pub trait BoundingSurface: Surface
 {
-    fn enters_bounds(&self, ray: &Ray) -> bool;
+    fn may_intersect_in_range(&self, ray: &Ray, range: &RayRange) -> bool;
 }
 
 pub trait Volume: Surface

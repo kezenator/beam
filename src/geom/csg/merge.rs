@@ -30,7 +30,7 @@ impl Surface for Merge
         {
             if let Some(intersection) = s.closest_intersection_in_range(ray, &range)
             {
-                range.update_max(intersection.distance);
+                range.set_max(intersection.distance);
                 closest = Some(intersection);
             }
         }

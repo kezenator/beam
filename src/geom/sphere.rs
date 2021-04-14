@@ -61,7 +61,7 @@ impl Surface for Sphere
 
 impl BoundingSurface for Sphere
 {
-    fn enters_bounds(&self, ray: &Ray) -> bool
+    fn may_intersect_in_range(&self, ray: &Ray, range: &RayRange) -> bool
     {
         let oc = ray.source - self.centre;
         let a = ray.dir.magnitude_squared();
@@ -70,7 +70,20 @@ impl BoundingSurface for Sphere
 
         let discriminant = half_b*half_b - a*c;
 
-        discriminant > 0.0
+        if discriminant > 0.0
+        {
+            let sqrtd = discriminant.sqrt();
+
+            let d1 = (-half_b - sqrtd) / a;
+            let d2 = (-half_b + sqrtd) / a;
+
+            if range.intersection(&RayRange::new(d1, d2)).is_some()
+            {
+                return true;
+            }
+        }
+
+        false
     }
 }
 

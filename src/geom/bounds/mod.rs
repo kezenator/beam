@@ -19,7 +19,7 @@ impl<B: BoundingSurface, S: Surface> Surface for BoundedSurface<B, S>
 {
     fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
-        if self.bounds.enters_bounds(ray)
+        if self.bounds.may_intersect_in_range(ray, range)
         {
             self.surface.closest_intersection_in_range(ray, range)
         }

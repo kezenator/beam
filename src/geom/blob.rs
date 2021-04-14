@@ -1,6 +1,6 @@
 use float_ord::FloatOrd;
 
-use crate::geom::{BoundedSurface, Sphere, Surface, SurfaceIntersection};
+use crate::geom::{AABB, BoundedSurface, Surface, SurfaceIntersection};
 use crate::math::{EPSILON, Scalar};
 use crate::ray::{Ray, RayRange};
 use crate::vec::{Dir3, Point3};
@@ -19,13 +19,16 @@ pub struct BlobPart
 
 impl Blob
 {
-    pub fn new(parts: Vec<BlobPart>, threshold: Scalar) -> BoundedSurface<Sphere, Blob>
+    pub fn new(parts: Vec<BlobPart>, threshold: Scalar) -> BoundedSurface<AABB, Blob>
     {
-        let center = parts.iter().map(|p| p.center).sum::<Point3>() / (parts.len() as Scalar);
-        let radius = parts.iter().map(|p| FloatOrd((p.center - center).magnitude() + p.radius)).max().unwrap_or(FloatOrd(EPSILON)).0;
+        assert!(!parts.is_empty());
+
+        let aabb = parts[0].to_aabb();
+
+        let aabb = parts.iter().skip(1).fold(aabb, |aabb, p| aabb.union(&p.to_aabb()));
 
         BoundedSurface::new(
-            Sphere::new(center, radius),
+            aabb,
             Blob { parts, threshold })
     }
 
@@ -185,6 +188,15 @@ impl Surface for Blob
 
 impl BlobPart
 {
+    fn to_aabb(&self) -> AABB
+    {
+        let rad = self.radius.abs();
+
+        AABB::new(
+            Point3::new(self.center.x - rad, self.center.y - rad, self.center.z - rad),
+            Point3::new(self.center.x + rad, self.center.y + rad, self.center.z + rad))
+    }
+
     fn weight_at(&self, point: Point3) -> Scalar
     {
         let distance = (point - self.center).magnitude() / self.radius;

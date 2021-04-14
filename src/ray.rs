@@ -1,4 +1,4 @@
-use crate::math::{EPSILON, Scalar};
+use crate::math::Scalar;
 use crate::intersection::{Face, SurfaceIntersection};
 use crate::vec::{Dir3, Point3};
 
@@ -63,6 +63,21 @@ impl RayRange
         }
     }
 
+    pub fn min(&self) -> Scalar
+    {
+        self.min
+    }
+
+    pub fn max(&self) -> Scalar
+    {
+        self.max
+    }
+
+    pub fn is_empty(&self) -> bool
+    {
+        !(self.min < self.max)
+    }
+
     pub fn intersection(&self, other: &RayRange) -> Option<Self>
     {
         let min = self.min.max(other.min);
@@ -83,7 +98,12 @@ impl RayRange
         val > self.min && val < self.max
     }
 
-    pub fn update_max(&mut self, max: Scalar)
+    pub fn set_min(&mut self, min: Scalar)
+    {
+        self.min = min;
+    }
+
+    pub fn set_max(&mut self, max: Scalar)
     {
         self.max = max;
     }

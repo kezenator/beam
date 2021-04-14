@@ -8,7 +8,7 @@ use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::camera::Camera;
 use crate::object::Object;
-use crate::geom::{Plane, Sphere, Rectangle, Blob, BlobPart};
+use crate::geom::{AABB, Plane, Sphere, Rectangle, Blob, BlobPart, BoundedSurface, csg};
 use crate::texture::Texture;
 
 pub struct Scene
@@ -49,11 +49,25 @@ impl Scene
                 Material::dielectric(1.5))
         };
 
+        let light_sphere = |centre: Point3, radius: Scalar| -> Object
+        {
+            Object::new(
+                Sphere::new(centre, radius),
+                Material::emit(RGBA::new(4.0, 4.0, 4.0, 1.0)))
+        };
+
         let rectangle = |point: Point3, u: Point3, v: Point3| -> Object
         {
             Object::new(
                 Rectangle::new(point, u, v),
                 Material::diffuse(Texture::solid(RGBA::new(0.7, 0.7, 0.7, 1.0))))
+        };
+
+        let aabb = |min: Point3, max: Point3, color: RGBA| -> Object
+        {
+            Object::new(
+                AABB::new(min, max),
+                Material::diffuse(Texture::solid(color)))
         };
 
         let plane = |point: Point3, normal: Dir3, color: RGBA| -> Object
@@ -66,7 +80,7 @@ impl Scene
         let cloud = |center: Point3, radius: Scalar, blob_rad: Scalar, num: usize, color: RGBA| -> Object
         {
             let mut sampler = Sampler::new_reproducable(0xBAD5EED5DEADBEEFu64);
-            let mut merge = crate::geom::csg::Merge::new();
+            let mut merge = csg::Merge::new();
 
             for _ in 0..num
             {
@@ -78,7 +92,7 @@ impl Scene
             let bounds = Sphere::new(center, radius);
 
             Object::new(
-                crate::geom::bounds::BoundedSurface::new(bounds, merge),
+                BoundedSurface::new(bounds, merge),
                 Material::diffuse(Texture::solid(color)))
         };
 
@@ -94,6 +108,19 @@ impl Scene
             
             Object::new(
                 Blob::new(parts, 0.25),
+                Material::diffuse(Texture::solid(color)))
+        };
+
+        let cut_box = |center: Point3, radius: Scalar, color: RGBA| -> Object
+        {
+            let min = Point3::new(center.x - radius, center.y - radius, center.z - radius);
+            let max = Point3::new(center.x + radius, center.y + radius, center.z + radius);
+
+            let diff = csg::Difference::new(AABB::new(min, max), Sphere::new(center, 1.3 * radius));
+            let aabb = AABB::new(min, max);
+
+            Object::new(
+                BoundedSurface::new(aabb, diff),
                 Material::diffuse(Texture::solid(color)))
         };
 
@@ -129,8 +156,16 @@ impl Scene
                 // Metal spheres
                 metal_sphere(Point3::new(2.50, -2.0, 1.0), 1.25, RGBA::new(0.8, 0.5, 0.8, 1.0)),
 
-                // Glass sphere
+                // Glass spheres and a floor for a caustic
                 glass_sphere(Point3::new(-1.5, -2.0, 1.5), 1.25),
+                glass_sphere(Point3::new(-4.0, -2.2, 0.5), 0.75),
+                aabb(Point3::new(-6.0, -3.4, -3.0), Point3::new(-2.0, -3.2, 1.0), RGBA::new(0.7, 0.7, 0.7, 1.0)),
+
+                // A cut box on the caustic floor
+                cut_box(Point3::new(-4.0, -2.2, -1.5), 0.75, RGBA::new(0.9, 0.5, 0.2, 1.0)),
+
+                // Light
+                light_sphere(Point3::new(-2.0, 1.0, 1.0), 1.0),
 
                 // Ground
                 plane(Point3::new(0.0, -3.51, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),
@@ -170,10 +205,13 @@ impl Scene
             Some(intersection) =>
             {
                 // We've hit an object.
-                // Use the object's material to calculate a
-                // random scattering ray and attenuation.
+                // Use the object's material to calculate
+                // 1) Any emmission (e.g. from a light source)
+                // 2) A random scattering ray and attenuation
 
-                match intersection.material.scatter(sampler, &intersection.surface)
+                let emission = intersection.material.emmission(sampler, &intersection.surface);
+
+                let scatter = match intersection.material.scatter(sampler, &intersection.surface)
                 {
                     Some((scatter_ray, attenuation_color)) =>
                     {
@@ -192,7 +230,9 @@ impl Scene
 
                         RGBA::new(0.0, 0.0, 0.0, 1.0)
                     },
-                }
+                };
+
+                emission + scatter
             },
             None =>
             {
@@ -274,14 +314,14 @@ impl Scene
 
     fn trace_intersection<'r, 'm>(&'m self, ray: &'r Ray) -> Option<ObjectIntersection<'r, 'm>>
     {
-        let mut range = RayRange::new(EPSILON, Scalar::INFINITY);
+        let mut range = RayRange::new(EPSILON, Scalar::MAX);
         let mut closest = None;
 
         for obj in self.objects.iter()
         {
             if let Some(intersection) = obj.closest_intersection_in_range(ray, &range)
             {
-                range.update_max(intersection.surface.distance);
+                range.set_max(intersection.surface.distance);
                 closest = Some(intersection);
             }
         }

@@ -11,6 +11,7 @@ pub enum Material
     Diffuse(Texture),
     Metal(Texture, Scalar),
     Dielectric(Scalar),
+    Emit(RGBA),
 }
 
 impl Material
@@ -28,6 +29,20 @@ impl Material
     pub fn dielectric(ior: Scalar) -> Material
     {
         Material::Dielectric(ior)
+    }
+
+    pub fn emit(color: RGBA) -> Material
+    {
+        Material::Emit(color)
+    }
+
+    pub fn emmission<'r>(&self, _sampler: &mut Sampler, _intersection: &SurfaceIntersection<'r>) -> RGBA
+    {
+        match self
+        {
+            Material::Emit(color) => color.clone(),
+            _ => RGBA::new(0.0, 0.0, 0.0, 1.0),
+        }
     }
 
     pub fn scatter<'r>(&self, sampler: &mut Sampler, intersection: &SurfaceIntersection<'r>) -> Option<(Ray, RGBA)>
@@ -96,6 +111,10 @@ impl Material
 
                 Some((new_ray, RGBA::new(1.0, 1.0, 1.0, 1.0)))
             },
+            Material::Emit(_) =>
+            {
+                None
+            },
         }
     }
 
@@ -142,6 +161,10 @@ impl Material
                 let refracted_ray = Ray::new(intersection.location(), refracted_dir);
 
                 (color, Some(refracted_ray))
+            },
+            Material::Emit(color) =>
+            {
+                (color.clone(), None)
             },
         }
     }
