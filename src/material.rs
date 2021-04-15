@@ -118,7 +118,7 @@ impl Material
         }
     }
 
-    pub fn local<'r>(&self, intersection: &SurfaceIntersection<'r>) -> (RGBA, Option<Ray>)
+    pub fn local<'r>(&self, intersection: &SurfaceIntersection<'r>) -> LocalLightingModel
     {
         match self
         {
@@ -127,7 +127,7 @@ impl Material
                 // Just return the texture color, with
                 // no onwards ray tracing
 
-                (texture.get_color_at(intersection.location()), None)
+                LocalLightingModel::Diffuse(texture.get_color_at(intersection.location()))
             },
             Material::Metal(texture, _) =>
             {
@@ -139,7 +139,7 @@ impl Material
                 let reflected_dir = reflect(intersection.ray.dir, intersection.normal);
                 let reflected_ray = Ray::new(intersection.location(), reflected_dir);
 
-                (texture_color, Some(reflected_ray))
+                LocalLightingModel::Attenuate(texture_color, reflected_ray)
             },
             Material::Dielectric(ior) =>
             {
@@ -160,14 +160,21 @@ impl Material
                 let refracted_dir = refract_or_reflect(intersection.ray.dir.normalized(), intersection.normal, refraction_ratio, 1.0);
                 let refracted_ray = Ray::new(intersection.location(), refracted_dir);
 
-                (color, Some(refracted_ray))
+                LocalLightingModel::Attenuate(color, refracted_ray)
             },
-            Material::Emit(color) =>
+            Material::Emit(_) =>
             {
-                (color.clone(), None)
+                LocalLightingModel::Emit(RGBA::new(1.0, 1.0, 1.0, 1.0))
             },
         }
     }
+}
+
+pub enum LocalLightingModel
+{
+    Diffuse(RGBA),
+    Attenuate(RGBA, Ray),
+    Emit(RGBA),
 }
 
 fn reflect(incoming: Dir3, normal: Dir3) -> Dir3

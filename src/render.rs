@@ -1,4 +1,5 @@
 use crate::color;
+use crate::desc::SceneDescription;
 use crate::math::Scalar;
 use crate::scene::Scene;
 use crate::sample::Sampler;
@@ -12,15 +13,20 @@ use rand::{thread_rng, seq::SliceRandom};
 #[derive(Clone)]
 pub struct RenderOptions
 {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
+    pub local_only: bool,
+    pub max_blockiness: u32,
 }
 
 impl RenderOptions
 {
     pub fn new(width: u32, height: u32) -> Self
     {
-        RenderOptions { width, height }
+        let local_only = false;
+        let max_blockiness = 1024;
+
+        RenderOptions { width, height, local_only, max_blockiness }
     }
 }
 
@@ -53,11 +59,11 @@ pub struct Renderer
 
 impl Renderer
 {
-    pub fn new(options: RenderOptions) -> Self
+    pub fn new(options: RenderOptions, desc: SceneDescription) -> Self
     {
         let (sender, receiver) = crossbeam::channel::bounded(1);
 
-        let thread = Some(std::thread::spawn(move || render_thread(options, sender)));
+        let thread = Some(std::thread::spawn(move || render_thread(options, desc, sender)));
         let receiver = Some(receiver);
 
         Renderer { thread, receiver }
@@ -86,6 +92,8 @@ struct SampleResult
 
 struct RenderState
 {
+    options: RenderOptions,
+    desc: SceneDescription,
     local_samples: u64,
     local_duration: Duration,
     global_samples: u64,
@@ -96,49 +104,73 @@ struct RenderState
 
 impl RenderState
 {
-    fn new(options: &RenderOptions) -> Self
+    fn new(options: RenderOptions, desc: SceneDescription) -> Self
     {
+        let num_pixels = (options.width as usize) * (options.height as usize);
+
         RenderState
         {
+            options: options,
+            desc: desc,
             local_samples: 0,
             local_duration: Duration::default(),
             global_samples: 0,
             global_duration: Duration::default(),
             completed_global_samples_per_pixel: 0,
-            pixels: vec![color::RGBA::new(0.0, 0.0, 0.0, 1.0); (options.width as usize) * (options.height as usize)],
+            pixels: vec![color::RGBA::new(0.0, 0.0, 0.0, 1.0); num_pixels],
         }
     }
 }
 
-fn render_thread(options: RenderOptions, sender: Sender<RenderUpdate>)
+fn render_thread(options: RenderOptions, desc: SceneDescription, sender: Sender<RenderUpdate>)
 {
-    let mut state = RenderState::new(&options);
+    let mut state = RenderState::new(options, desc);
 
     // First, do a quick pass with local lighting
     // down to half the resolution
 
-    const MAX_STEP_SIZE: u32 = 1024;
+    let mut first_local_pass = true;
 
-    let mut step = MAX_STEP_SIZE;
-
-    while step >= 2
     {
-        if !render_pass(&options, &mut state, step, step == MAX_STEP_SIZE, 1, false, &sender)
+        const MAX_STEP_SIZE: u32 = 1024;
+
+        let mut step = MAX_STEP_SIZE;
+
+        while step >= 2
+        {
+            if step <= state.options.max_blockiness
+            {
+                if !render_pass(&mut state, step, first_local_pass, 1, false, &sender)
+                {
+                    return;
+                }
+                first_local_pass = false;
+            }
+
+            step /= 2;
+        }
+    }
+
+    if state.options.local_only
+    {
+        // Render the local lighting pass for all pixels
+
+        if !render_pass(&mut state, 1, first_local_pass, 1, false, &sender)
         {
             return;
         }
-
-        step /= 2;
     }
-
-    // Now sample all pixels, with global lighting
-    // at increasing samples per pixel
-
-    for samples in [1, 8, 32, 128, 512, 2048].iter()
+    else // global illumination requested
     {
-        if !render_pass(&options, &mut state, 1, true, *samples, true, &sender)
+        // Now sample all pixels, with global lighting
+        // at increasing samples per pixel
+
+        for samples in [1, 8, 32, 128, 512, 2048].iter()
         {
-            return;
+            if !render_pass(&mut state, 1, true, *samples, true, &sender)
+            {
+                return;
+            }
         }
     }
 
@@ -154,13 +186,13 @@ fn render_thread(options: RenderOptions, sender: Sender<RenderUpdate>)
     let _ = sender.send(final_update);
 }
 
-fn render_pass(options: &RenderOptions, state: &mut RenderState, step: u32, all_pixels: bool, samples_per_pixel: usize, global_illum: bool, sender: &Sender<RenderUpdate>) -> bool
+fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, samples_per_pixel: usize, global_illum: bool, sender: &Sender<RenderUpdate>) -> bool
 {
     // Work out which pixels we need to update, and the size
     // that they are drawn at
 
-    let width = options.width;
-    let height = options.height;
+    let width = state.options.width;
+    let height = state.options.height;
 
     let mut updates = Vec::new();
 
@@ -231,9 +263,10 @@ fn render_pass(options: &RenderOptions, state: &mut RenderState, step: u32, all_
     let spawn_thread = |chunks: Vec<Vec<PixelRect>>| -> JoinHandle<()>
     {
         let thread_sender = sub_sender.clone();
-        let thread_options = options.clone();
+        let thread_options = state.options.clone();
+        let thread_desc = state.desc.clone();
 
-        std::thread::spawn(move || render_pixel_thread(thread_options, new_samples_per_pixel, global_illum, chunks, thread_sender))
+        std::thread::spawn(move || render_pixel_thread(thread_options, thread_desc, new_samples_per_pixel, global_illum, chunks, thread_sender))
     };
 
     let join_handles: Vec<JoinHandle<()>> = chunks
@@ -267,7 +300,7 @@ fn render_pass(options: &RenderOptions, state: &mut RenderState, step: u32, all_
                 {
                     let x = pixel.rect.x;
                     let y = pixel.rect.y;
-                    let index = (y * options.width + x) as usize;
+                    let index = (y * state.options.width + x) as usize;
 
                     let sum = state.pixels[index].clone();
                     let sum = sum + pixel.color.clone();
@@ -360,9 +393,9 @@ fn time_per_sample(duration: &Duration, samples: &u64) -> String
     format!("{:.2} us/sample", tps * 1000000.0)
 }
 
-fn render_pixel_thread(options: RenderOptions, new_samples_per_pixel: usize, global_illum: bool, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
+fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_samples_per_pixel: usize, global_illum: bool, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
 {
-    let scene = Scene::new_default(options.width, options.height);
+    let scene = desc.build_scene(&options);
     let mut sampler = Sampler::new();
 
     for updates in updates.into_iter()

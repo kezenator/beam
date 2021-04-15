@@ -1,9 +1,12 @@
 use sdl2::pixels::Color;
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Mod};
 use std::time::Duration;
 
+use beam::desc::SceneDescription;
+use beam::math::Scalar;
 use beam::render::{Renderer, RenderOptions};
+use beam::vec::{Mat4, Point3, Vec3, Vec4};
 
 fn main() -> Result<(), String>
 {
@@ -32,7 +35,8 @@ fn main() -> Result<(), String>
 
     let texture_creator = canvas.texture_creator();
 
-    let renderer = Renderer::new(RenderOptions::new(WIDTH, HEIGHT));
+    let mut app_state = AppState::new(WIDTH, HEIGHT);
+    let mut renderer = app_state.new_renderer();
 
     canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
@@ -49,6 +53,13 @@ fn main() -> Result<(), String>
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } =>
                 {
                     break 'running;
+                },
+                Event::KeyDown { keycode: Some(keycode), keymod, .. } =>
+                {
+                    if app_state.handle_keycode(keycode, keymod)
+                    {
+                        renderer = app_state.new_renderer();
+                    }
                 },
                 _ => {},
             }
@@ -75,4 +86,148 @@ fn main() -> Result<(), String>
     }
 
     Ok(())
+}
+
+struct AppState
+{
+    options: RenderOptions,
+    desc: SceneDescription,
+}
+
+impl AppState
+{
+    pub fn new(width: u32, height: u32) -> Self
+    {
+        AppState
+        {
+            options: RenderOptions::new(width, height),
+            desc: SceneDescription::new(),
+        }
+    }
+
+    pub fn new_renderer(&self) -> Renderer
+    {
+        Renderer::new(self.options.clone(), self.desc.clone())
+    }
+
+    pub fn handle_keycode(&mut self, keycode: Keycode, keymod: Mod) -> bool
+    {
+        let ctrl = keymod.contains(sdl2::keyboard::Mod::LCTRLMOD)
+            || keymod.contains(sdl2::keyboard::Mod::RCTRLMOD);
+
+        let handled = match keycode
+        {
+            Keycode::L =>
+            {
+                self.options.local_only = !self.options.local_only;
+                true
+            },
+            Keycode::Left =>
+            {
+                if ctrl
+                {
+                    self.rotate_around(-10.0);
+                }
+                else
+                {
+                    self.move_around(Point3::new(-1.0, 0.0, 0.0));
+                }
+                true
+            },
+            Keycode::Right =>
+            {
+                if ctrl
+                {
+                    self.rotate_around(10.0);
+                }
+                else
+                {
+                    self.move_around(Point3::new(1.0, 0.0, 0.0));
+                }
+                true
+            },
+            Keycode::Up =>
+            {
+                if ctrl
+                {
+                    self.tilt(10.0);
+                }
+                else
+                {
+                    self.move_around(Point3::new(0.0, 0.0, -1.0));
+                }
+                true
+            },
+            Keycode::Down =>
+            {
+                if ctrl
+                {
+                    self.tilt(-10.0);
+                }
+                else
+                {
+                    self.move_around(Point3::new(0.0, 0.0, 1.0));
+                }
+                true
+            },
+            Keycode::KpPlus =>
+            {
+                self.desc.camera_fov -= 5.0;
+                true
+            },
+            Keycode::KpMinus =>
+            {
+                self.desc.camera_fov += 5.0;
+                true
+            },
+            _ =>
+            {
+                false
+            },
+        };
+
+        if handled
+        {
+            self.options.max_blockiness = 8;
+        }
+
+        handled
+    }
+
+    fn move_around(&mut self, dir: Point3)
+    {
+        let look = self.desc.camera_look_at - self.desc.camera_location;
+        let right = look.cross(self.desc.camera_up).normalized();
+        let back = right.cross(self.desc.camera_up).normalized();
+        
+        let dir = (dir.x * right) + (dir.z * back);
+        let dir = Vec3::new(dir.x, 0.0, dir.z);
+
+        self.desc.camera_location += dir;
+        self.desc.camera_look_at += dir;
+    }
+
+    fn rotate_around(&mut self, degrees: Scalar)
+    {
+        let dir = self.desc.camera_location - self.desc.camera_look_at;
+
+        let rot = Mat4::rotation_y(degrees.to_radians());
+
+        let new_dir: Vec3 = (rot * Vec4::from_direction(dir)).into();
+
+        self.desc.camera_location = new_dir + self.desc.camera_look_at;
+    }
+
+    fn tilt(&mut self, degrees: Scalar)
+    {
+        let dir = self.desc.camera_location - self.desc.camera_look_at;
+
+        let right = dir.cross(self.desc.camera_up);
+
+        let rot = Mat4::rotation_3d(degrees.to_radians(), right);
+
+        let new_dir: Vec3 = (rot * Vec4::from_direction(dir)).into();
+
+        self.desc.camera_location = new_dir + self.desc.camera_look_at;
+    }
 }

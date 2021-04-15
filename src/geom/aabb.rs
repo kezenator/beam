@@ -20,8 +20,8 @@ impl AABB
     {
         AABB
         {
-            min: Point3::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y), self.min.y.min(other.min.y)),
-            max: Point3::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y), self.max.y.max(other.max.y)),
+            min: Point3::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y), self.min.z.min(other.min.z)),
+            max: Point3::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y), self.max.z.max(other.max.z)),
         }
     }
 }
