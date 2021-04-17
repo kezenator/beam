@@ -3,6 +3,7 @@ pub mod color;
 pub mod desc;
 pub mod geom;
 pub mod intersection;
+pub mod lighting;
 pub mod material;
 pub mod math;
 pub mod object;

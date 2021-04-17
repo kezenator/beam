@@ -1,12 +1,13 @@
 use crate::material::MaterialInteraction;
 use crate::math::{EPSILON, Scalar};
-use crate::vec::{Dir3, Point3};
+use crate::vec::Dir3;
 use crate::color::RGBA;
 use crate::intersection::{Face, ObjectIntersection};
 use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::camera::Camera;
 use crate::object::Object;
+use crate::lighting::LightingRegion;
 
 pub struct SceneSampleStats
 {
@@ -24,15 +25,15 @@ impl SceneSampleStats
 pub struct Scene
 {
     camera: Camera,
-    local_light_positions: Vec<Point3>,
+    lighting_regions: Vec<LightingRegion>,
     objects: Vec<Object>,
 }
 
 impl Scene
 {
-    pub fn new(camera: Camera, local_light_positions: Vec<Point3>, objects: Vec<Object>) -> Self
+    pub fn new(camera: Camera, lighting_regions: Vec<LightingRegion>, objects: Vec<Object>) -> Self
     {
-        Scene { camera, local_light_positions, objects }
+        Scene { camera, lighting_regions, objects }
     }
 
     pub fn path_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
@@ -175,25 +176,33 @@ impl Scene
                         // Shadow rays
 
                         let int_location = intersection.surface.location();
-                        let one_on_num = (self.local_light_positions.len() as f64).recip();
 
-                        for local_light_loc in self.local_light_positions.iter()
+                        // Find the first lighting region that covers the intersection location
+
+                        if let Some(lighting_region) = self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(int_location)).nth(0)
                         {
-                            let light_dir = (local_light_loc - int_location).normalized();
-                            let diffuse_factor = intersection.surface.normal.dot(light_dir);
-                            if diffuse_factor > 0.0
+                            // The factor for each light is 0.8 (totall diffuse component) / num lights
+
+                            let diffuse_factor = 0.8 / (lighting_region.local_points.len() as f64);
+
+                            for local_light_loc in lighting_region.local_points.iter()
                             {
-                                stats.num_rays += 1;
-
-                                if let Some(shadow_int) = self.trace_intersection(&Ray::new(int_location, light_dir))
+                                let light_dir = (local_light_loc - int_location).normalized();
+                                let geom_factor = intersection.surface.normal.dot(light_dir);
+                                if geom_factor > 0.0
                                 {
-                                    if let MaterialInteraction::Emit{ emited_color } = shadow_int.material.get_surface_interaction(&shadow_int.surface)
-                                    {
-                                        // Our shadow ray has hit an emitting surface - add a diffuse
-                                        // component calculated from this light.
-                                        // Clamp color as the extra light required by the global mode is not needed.
+                                    stats.num_rays += 1;
 
-                                        sum = sum + diffuse_color.combined_with(&emited_color.clamped()).multiplied_by_scalar(0.8 * one_on_num * diffuse_factor);
+                                    if let Some(shadow_int) = self.trace_intersection(&Ray::new(int_location, light_dir))
+                                    {
+                                        if let MaterialInteraction::Emit{ emited_color } = shadow_int.material.get_surface_interaction(&shadow_int.surface)
+                                        {
+                                            // Our shadow ray has hit an emitting surface - add a diffuse
+                                            // component calculated from this light.
+                                            // Clamp color as the extra light required by the global mode is not needed.
+
+                                            sum = sum + diffuse_color.combined_with(&emited_color.clamped()).multiplied_by_scalar(diffuse_factor * geom_factor);
+                                        }
                                     }
                                 }
                             }

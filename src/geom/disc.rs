@@ -1,38 +1,30 @@
 use crate::geom::{SampleableSurface, Surface};
 use crate::intersection::SurfaceIntersection;
-use crate::math::{EPSILON, Scalar};
+use crate::math::{EPSILON, Scalar, ScalarConsts};
 use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::vec::{Dir3, Point3};
 
-pub struct Rectangle
+pub struct Disc
 {
     point: Point3,
     normal: Dir3,
-    dir_u: Dir3,
-    dir_v: Dir3,
-    len_u: Scalar,
-    len_v: Scalar,
+    radius: Scalar,
 }
 
-impl Rectangle
+impl Disc
 {
-    pub fn new(point: Point3, u: Dir3, v: Dir3) -> Self
+    pub fn new(point: Point3, normal: Dir3, radius: Scalar) -> Self
     {
-        let len_u = u.magnitude();
-        let len_v = v.magnitude();
-        let normal = u.cross(v).normalized();
-        let dir_v = normal.cross(u).normalized();
-        let dir_u = dir_v.cross(normal).normalized();
-
-        Rectangle { point, normal, dir_u, dir_v, len_u, len_v }
+        Disc { point, normal, radius }
     }
 }
 
-impl Surface for Rectangle
+impl Surface for Disc
 {
     fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
+        // First - intersect with the plane the disc is in.
         // When the ray intersection is on the plane, the dot
         // product of the location will be zero.
         // i.e. (ray.source + t * ray.dir - self.point) dot self.normal == 0
@@ -49,13 +41,13 @@ impl Surface for Rectangle
 
             if range.contains(distance)
             {
-                // Now, work out if this is in the rectangle
-                
-                let int_offset = ray.point_at(distance) - self.point;
-                let int_u = int_offset.dot(self.dir_u);
-                let int_v = int_offset.dot(self.dir_v);
+                // Now, work out if this is in the disc
 
-                if int_u >= 0.0 && int_u <= self.len_u && int_v >= 0.0 && int_v <= self.len_v
+                let int_offset = ray.point_at(distance) - self.point;
+
+                let dist_squared = int_offset.magnitude_squared();
+
+                if dist_squared < (self.radius * self.radius)
                 {
                     let normal = self.normal.clone();
 
@@ -68,24 +60,37 @@ impl Surface for Rectangle
     }
 }
 
-impl SampleableSurface for Rectangle
+impl SampleableSurface for Disc
 {
     fn generate_random_sample_direction_from_and_calc_pdf(&self, location: Point3, sampler: &mut Sampler) -> (Dir3, Scalar)
     {
-        // First, calcualte a random point on the rectangle
+        // First, calcualte a random point on the disc.
+        // For this, we need a set of ortho-normal bases
 
-        let r1 = sampler.uniform_scalar_unit();
-        let r2 = sampler.uniform_scalar_unit();
+        let u = if self.normal.x > 0.9 { Dir3::new(0.0, 1.0, 0.0) } else { Dir3::new(1.0, 0.0, 0.0) };
+        let v = self.normal.cross(u).normalized();
+        let u = self.normal.cross(v);
 
-        let rand_point_on_surface = self.point + ((r1 * self.len_u) * self.dir_u) + ((r2 * self.len_v) * self.dir_v);
+        // Now we can use the orthonormal base to calculate
+        // a point on the disc
+
+        let rad = sampler.uniform_scalar_unit().sqrt() * self.radius;
+        let ang = sampler.uniform_scalar_unit() * 2.0 * ScalarConsts::PI;
+
+        let cu = rad * ang.sin();
+        let cv = rad * ang.cos();
+
+        let rand_point_on_surface = self.point
+            + (cu * u)
+            + (cv * v);
 
         let dir_with_len = rand_point_on_surface - location;
 
         let dir_normalized = dir_with_len.normalized();
 
-        // Now, repeat the PDF calculation (from below)
+        // Now, repeat the PDF calculcation from below
 
-        let area = self.len_u * self.len_v;
+        let area = ScalarConsts::PI * self.radius * self.radius;
         let distance_squared = dir_with_len.magnitude_squared();
 
         let cosine = dir_normalized.dot(self.normal).abs();
@@ -101,7 +106,7 @@ impl SampleableSurface for Rectangle
         {
             Some(intersection) =>
             {
-                let area = self.len_u * self.len_v;
+                let area = ScalarConsts::PI * self.radius * self.radius;
                 let distance_squared = ray.dir.magnitude_squared() * intersection.distance * intersection.distance;
         
                 let cosine = ray.dir.normalized().dot(self.normal).abs();

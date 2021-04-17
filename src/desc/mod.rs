@@ -2,6 +2,7 @@ use crate::math::Scalar;
 use crate::scene::Scene;
 use crate::vec::{Dir3, Point3};
 use crate::color::RGBA;
+use crate::lighting::LightingRegion;
 use crate::material::Material;
 use crate::camera::Camera;
 use crate::object::Object;
@@ -139,15 +140,21 @@ impl SceneDescription
 
         Scene::new(
             Camera::new(self.camera_location, self.camera_look_at, self.camera_up, self.camera_fov, (options.width as f64) / (options.height as f64)),
-            // Local light points
+            // Lighting regions
             vec![
-                // Small sphere
-                Point3::new(-2.0, 1.0, 1.0),
-                Point3::new(-2.0, 1.2, 1.0),
-                Point3::new(-2.0, 1.0, 1.2),
-                Point3::new(-2.0, 1.0, 0.8),
-                // Top
-                Point3::new(0.0, 50.0, 0.0),
+                LightingRegion::new_2(
+                    Sphere::new(Point3::new(0.0, 0.0, 0.0), 100.0),
+                    Rectangle::new(Point3::new(-50.0, 50.0, 50.0), Dir3::new(0.0, 0.0, -100.0), Dir3::new(100.0, 0.0, 0.0)),
+                    Sphere::new(Point3::new(-2.0, 1.0, 1.0), 0.2),
+                    vec![
+                        // Small sphere
+                        Point3::new(-2.0, 1.0, 1.0),
+                        Point3::new(-2.0, 1.2, 1.0),
+                        Point3::new(-2.0, 1.0, 1.2),
+                        Point3::new(-2.0, 1.0, 0.8),
+                        // Top
+                        Point3::new(0.0, 50.0, 0.0),
+                    ]),
             ],
             // Objects
             vec![
