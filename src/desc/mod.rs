@@ -80,7 +80,7 @@ impl SceneDescription
         {
             Object::new(
                 Plane::new(point, normal),
-                Material::diffuse(Texture::checkerboard(color, RGBA::new(1.0, 1.0, 1.0, 1.0))))
+                Material::metal(Texture::checkerboard(color, RGBA::new(1.0, 1.0, 1.0, 1.0)), 0.1))
         };
 
         let wall_plane = |point: Point3, normal: Dir3, color: RGBA| -> Object

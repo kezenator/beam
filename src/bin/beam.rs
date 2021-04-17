@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use beam::desc::SceneDescription;
 use beam::math::Scalar;
-use beam::render::{Renderer, RenderOptions};
+use beam::render::{Renderer, RenderOptions, RenderIlluminationMode};
 use beam::vec::{Mat4, Point3, Vec3, Vec4};
 
 fn main() -> Result<(), String>
@@ -119,7 +119,11 @@ impl AppState
         {
             Keycode::L =>
             {
-                self.options.local_only = !self.options.local_only;
+                self.options.illumination_mode = match self.options.illumination_mode
+                {
+                    RenderIlluminationMode::Local => RenderIlluminationMode::Global,
+                    RenderIlluminationMode::Global => RenderIlluminationMode::Local,
+                };
                 true
             },
             Keycode::Left =>
@@ -172,12 +176,12 @@ impl AppState
             },
             Keycode::KpPlus =>
             {
-                self.desc.camera_fov -= 5.0;
+                self.desc.camera_fov = (self.desc.camera_fov - 5.0).clamp(1.0, 175.0);
                 true
             },
             Keycode::KpMinus =>
             {
-                self.desc.camera_fov += 5.0;
+                self.desc.camera_fov = (self.desc.camera_fov + 5.0).clamp(1.0, 175.0);
                 true
             },
             _ =>

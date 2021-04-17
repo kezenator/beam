@@ -8,6 +8,19 @@ use crate::sample::Sampler;
 use crate::camera::Camera;
 use crate::object::Object;
 
+pub struct SceneSampleStats
+{
+    pub num_rays: u64,
+}
+
+impl SceneSampleStats
+{
+    pub fn new() -> Self
+    {
+        SceneSampleStats { num_rays: 0 }
+    }
+}
+
 pub struct Scene
 {
     camera: Camera,
@@ -22,21 +35,21 @@ impl Scene
         Scene { camera, local_light_positions, objects }
     }
 
-    pub fn path_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler) -> RGBA
+    pub fn path_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
         let ray = self.camera.get_ray(u, v);
 
-        self.cast_ray_global(&ray, 0, sampler)
+        self.cast_ray_global(&ray, 0, sampler, stats)
     }
 
-    pub fn quick_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler) -> RGBA
+    pub fn quick_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
         let ray = self.camera.get_ray(u, v);
 
-        self.cast_ray_local(&ray, 0, sampler)
+        self.cast_ray_local(&ray, 0, sampler, stats)
     }
 
-    fn cast_ray_global(&self, ray: &Ray, depth: usize, sampler: &mut Sampler) -> RGBA
+    fn cast_ray_global(&self, ray: &Ray, depth: usize, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
         if depth > 50
         {
@@ -46,6 +59,8 @@ impl Scene
 
             return RGBA::new(0.0, 0.0, 0.0, 1.0);
         }
+
+        stats.num_rays += 1;
 
         match self.trace_intersection(ray)
         {
@@ -66,7 +81,7 @@ impl Scene
                         // to find the incoming light, and then attenuate
                         // based on the material's color
 
-                        let scattering_light = self.cast_ray_global(&scatter_ray, depth + 1, sampler);
+                        let scattering_light = self.cast_ray_global(&scatter_ray, depth + 1, sampler, stats);
 
                         scattering_light.combined_with(&attenuation_color)
                     },
@@ -90,8 +105,10 @@ impl Scene
         }
     }
 
-    fn cast_ray_local(&self, ray: &Ray, depth: usize, sampler: &mut Sampler) -> RGBA
+    fn cast_ray_local(&self, ray: &Ray, depth: usize, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
+        stats.num_rays += 1;
+
         match self.trace_intersection(ray)
         {
             Some(intersection) =>
@@ -122,6 +139,8 @@ impl Scene
                             let diffuse = intersection.surface.normal.dot(light_dir);
                             if diffuse > 0.0
                             {
+                                stats.num_rays += 1;
+
                                 if let Some(shadow_int) = self.trace_intersection(&Ray::new(int_location, light_dir))
                                 {
                                     if let LocalLightingModel::Emit(emit) = shadow_int.material.local(&shadow_int.surface)
@@ -149,7 +168,7 @@ impl Scene
                         }
                         else
                         {
-                            color.combined_with(&self.cast_ray_local(&next_ray, depth + 1, sampler))
+                            color.combined_with(&self.cast_ray_local(&next_ray, depth + 1, sampler, stats))
                         }
                     },
                     LocalLightingModel::Emit(color) =>
