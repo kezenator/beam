@@ -2,12 +2,25 @@ use crate::material::MaterialInteraction;
 use crate::math::{EPSILON, Scalar};
 use crate::vec::Dir3;
 use crate::color::RGBA;
-use crate::intersection::{Face, ObjectIntersection};
+use crate::intersection::{Face, ObjectIntersection, SurfaceIntersection};
 use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::camera::Camera;
 use crate::object::Object;
 use crate::lighting::LightingRegion;
+
+pub enum ScatteringResult
+{
+    Emit(RGBA),
+    AttenuateNext(RGBA, Dir3),
+}
+
+pub trait ScatteringFunction
+{
+    fn max_rays() -> usize;
+    fn scatter_ray<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult;
+    fn termination_contdition(attenuation: RGBA) -> RGBA;
+}
 
 pub struct SceneSampleStats
 {
@@ -36,242 +49,68 @@ impl Scene
         Scene { camera, lighting_regions, objects }
     }
 
-    pub fn path_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
+    pub fn path_trace_global_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
         let ray = self.camera.get_ray(u, v);
 
-        self.cast_ray_global(&ray, 0, sampler, stats)
+        self.path_trace::<GlobalLighting>(ray, sampler, stats)
     }
 
-    pub fn quick_trace_pixel(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
+    pub fn path_trace_local_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
         let ray = self.camera.get_ray(u, v);
 
-        self.cast_ray_local(&ray, 0, sampler, stats)
+        self.path_trace::<LocalLighting>(ray, sampler, stats)
     }
 
-    fn cast_ray_global(&self, ray: &Ray, depth: usize, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
+    pub fn path_trace<S: ScatteringFunction>(&self, ray: Ray, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
-        if depth > 50
+        let mut cur_ray = ray;
+        let mut cur_attenuation = RGBA::new(1.0, 1.0, 1.0, 1.0);
+
+        for _ in 0..S::max_rays()
         {
-            // We've recursed too deep - we've bounced around
-            // so many times we can assume that none of the light
-            // from here will make a visible difference to the final image
+            stats.num_rays += 1;
 
-            return RGBA::new(0.0, 0.0, 0.0, 1.0);
-        }
-
-        stats.num_rays += 1;
-
-        match self.trace_intersection(ray)
-        {
-            Some(intersection) =>
+            match self.trace_intersection(&cur_ray)
             {
-                // We've hit an object.
-                // Use the object's material restults to execute
-                // the local lighting model
-
-                match intersection.material.get_surface_interaction(&intersection.surface)
+                Some(intersection) =>
                 {
-                    MaterialInteraction::Diffuse{ diffuse_color } =>
+                    let material_interaction = intersection.material.get_surface_interaction(&intersection.surface);
+
+                    match S::scatter_ray(&self, &intersection.surface, material_interaction, sampler, stats)
                     {
-                        let location = intersection.surface.location();
-
-                        let scatter_dir = intersection.surface.normal + sampler.uniform_dir_on_unit_sphere();
-        
-                        let scatter_ray = Ray::new(location, scatter_dir);
-        
-                        diffuse_color.combined_with(&self.cast_ray_global(&scatter_ray, depth + 1, sampler, stats))
-                    },
-                    MaterialInteraction::Reflection{ attenuate_color, fuzz } =>
-                    {
-                        let location = intersection.surface.location();
-
-                        // Reflect incoming ray about the normal
-        
-                        let reflect_dir = reflect(intersection.surface.ray.dir, intersection.surface.normal);
-        
-                        // Add in some fuzzyness to the reflected ray
-        
-                        let reflect_dir =
-                            reflect_dir.normalized()
-                            + (fuzz * sampler.uniform_point_in_unit_sphere());
-        
-                        // With this fuzzyness, glancing rays or large
-                        // fuzzyness can cause the reflected ray to point
-                        // inside the object.
-        
-                        if reflect_dir.dot(intersection.surface.normal) > EPSILON
+                        ScatteringResult::AttenuateNext(attenuation_color, next_dir) =>
                         {
-                            let scatter_ray = Ray::new(location, reflect_dir);
+                            cur_ray = Ray::new(intersection.surface.location(), next_dir);
+                            cur_attenuation = cur_attenuation.combined_with(&attenuation_color);
 
-                            attenuate_color.combined_with(&self.cast_ray_global(&scatter_ray, depth + 1, sampler, stats))
-                        }
-                        else
+                            continue;
+                        },
+                        ScatteringResult::Emit(emitted_color) =>
                         {
-                            // Degenerate reflection
-                            RGBA::new(0.0, 0.0, 0.0, 1.0)
-                        }
-                    },
-                    MaterialInteraction::Refraction{ ior } =>
-                    {
-                        let refraction_ratio = if intersection.surface.face == Face::FrontFace
-                        {
-                            1.0 / ior
-                        }
-                        else
-                        {
-                            ior
-                        };
-        
-                        let unit_direction = intersection.surface.ray.dir.normalized();
-        
-                        let new_dir = refract_or_reflect(unit_direction, intersection.surface.normal, refraction_ratio, sampler.uniform_scalar_unit());
-        
-                        let new_ray = Ray::new(intersection.surface.location(), new_dir);
-        
-                        self.cast_ray_local(&new_ray, depth + 1, sampler, stats)
-                    },
-                    MaterialInteraction::Emit{ emited_color } =>
-                    {
-                        // The object is emitting light - return it and no scattering
-                        // is required
+                            // We've reached an emitting surface - return
+                            // the total contribution
 
-                        emited_color
-                    },
-                }
-            },
-            None =>
-            {
-                // No intersections! It's dark here!
-
-                RGBA::new(0.0, 0.0, 0.0, 1.0)
-            },
-        }
-    }
-
-    fn cast_ray_local(&self, ray: &Ray, depth: usize, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
-    {
-        stats.num_rays += 1;
-
-        match self.trace_intersection(ray)
-        {
-            Some(intersection) =>
-            {
-                // We've hit an object.
-                // Use the object's material restults to execute
-                // the local lighting model
-
-                match intersection.material.get_surface_interaction(&intersection.surface)
+                            return emitted_color.combined_with(&cur_attenuation);
+                        },
+                    }
+                },
+                None =>
                 {
-                    MaterialInteraction::Diffuse{ diffuse_color } =>
-                    {
-                        // A diffuse surface.
-                        // Start with some ambient light, and cast shadow rays
+                    // This ray doens't hit any objects -
+                    // there's nothing to see
 
-                        // Ambient
-
-                        let mut sum = diffuse_color.multiplied_by_scalar(0.2);
-
-                        // Shadow rays
-
-                        let int_location = intersection.surface.location();
-
-                        // Find the first lighting region that covers the intersection location
-
-                        if let Some(lighting_region) = self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(int_location)).nth(0)
-                        {
-                            // The factor for each light is 0.8 (totall diffuse component) / num lights
-
-                            let diffuse_factor = 0.8 / (lighting_region.local_points.len() as f64);
-
-                            for local_light_loc in lighting_region.local_points.iter()
-                            {
-                                let light_dir = (local_light_loc - int_location).normalized();
-                                let geom_factor = intersection.surface.normal.dot(light_dir);
-                                if geom_factor > 0.0
-                                {
-                                    stats.num_rays += 1;
-
-                                    if let Some(shadow_int) = self.trace_intersection(&Ray::new(int_location, light_dir))
-                                    {
-                                        if let MaterialInteraction::Emit{ emited_color } = shadow_int.material.get_surface_interaction(&shadow_int.surface)
-                                        {
-                                            // Our shadow ray has hit an emitting surface - add a diffuse
-                                            // component calculated from this light.
-                                            // Clamp color as the extra light required by the global mode is not needed.
-
-                                            sum = sum + diffuse_color.combined_with(&emited_color.clamped()).multiplied_by_scalar(diffuse_factor * geom_factor);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        sum
-                    },
-                    MaterialInteraction::Reflection{ attenuate_color, .. } =>
-                    {
-                        // Just return the color if we've done too many rays,
-                        // else cast another ray and attenuate.
-
-                        if depth >= 5
-                        {
-                            attenuate_color
-                        }
-                        else
-                        {
-                            let reflected_dir = reflect(intersection.surface.ray.dir, intersection.surface.normal);
-                            let reflected_ray = Ray::new(intersection.surface.location(), reflected_dir);
-
-                            let reflected_color = self.cast_ray_local(&reflected_ray, depth + 1, sampler, stats);
-
-                            attenuate_color.combined_with(&reflected_color)
-                        }
-                    },
-                    MaterialInteraction::Refraction{ ior } =>
-                    {
-                        // Just return black if we've done too many rays,
-                        // else cast another ray
-
-                        if depth >= 5
-                        {
-                            RGBA::new(0.0, 0.0, 0.0, 1.0)
-                        }
-                        else
-                        {
-                            let refraction_ratio = if intersection.surface.face == Face::FrontFace
-                            {
-                                1.0 / ior
-                            }
-                            else
-                            {
-                                ior
-                            };
-            
-                            let unit_direction = intersection.surface.ray.dir.normalized();
-            
-                            let new_dir = refract_or_reflect(unit_direction, intersection.surface.normal, refraction_ratio, 1.0);
-            
-                            let new_ray = Ray::new(intersection.surface.location(), new_dir);
-            
-                            self.cast_ray_local(&new_ray, depth + 1, sampler, stats)
-                        }
-                    },
-                    MaterialInteraction::Emit{ emited_color } =>
-                    {
-                        emited_color
-                    },
-                }
-            },
-            None =>
-            {
-                // No intersections - just return a
-                // dull background
-
-                RGBA::new(0.2, 0.2, 0.2, 1.0)
-            },
+                    return RGBA::new(0.0, 0.0, 0.0, 1.0);
+                },
+            }
         }
+
+        // We've traced down too many levels of rays!
+        // Ask the scattering function what
+        // termination condition they want
+
+        S::termination_contdition(cur_attenuation)
     }
 
     fn trace_intersection<'r, 'm>(&'m self, ray: &'r Ray) -> Option<ObjectIntersection<'r, 'm>>
@@ -289,6 +128,190 @@ impl Scene
         }
 
         closest
+    }
+}
+
+struct GlobalLighting
+{
+}
+
+impl ScatteringFunction for GlobalLighting
+{
+    fn max_rays() -> usize
+    {
+        50
+    }
+
+    fn scatter_ray<'r>(_scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, sampler: &mut Sampler, _stats: &mut SceneSampleStats) -> ScatteringResult
+    {
+        match material_interaction
+        {
+            MaterialInteraction::Diffuse{ diffuse_color } =>
+            {
+                let scatter_dir = intersection.normal + sampler.uniform_dir_on_unit_sphere();
+
+                ScatteringResult::AttenuateNext(diffuse_color, scatter_dir)
+            },
+            MaterialInteraction::Reflection{ attenuate_color, fuzz } =>
+            {
+                // Reflect incoming ray about the normal
+
+                let reflect_dir = reflect(intersection.ray.dir, intersection.normal);
+
+                // Add in some fuzzyness to the reflected ray
+
+                let reflect_dir =
+                    reflect_dir.normalized()
+                    + (fuzz * sampler.uniform_point_in_unit_sphere());
+
+                // With this fuzzyness, glancing rays or large
+                // fuzzyness can cause the reflected ray to point
+                // inside the object.
+
+                if reflect_dir.dot(intersection.normal) > EPSILON
+                {
+                    ScatteringResult::AttenuateNext(attenuate_color, reflect_dir)
+                }
+                else
+                {
+                    // Degenerate reflection
+                    ScatteringResult::Emit(RGBA::new(0.0, 0.0, 0.0, 1.0))
+                }
+            },
+            MaterialInteraction::Refraction{ ior } =>
+            {
+                let refraction_ratio = if intersection.face == Face::FrontFace
+                {
+                    1.0 / ior
+                }
+                else
+                {
+                    ior
+                };
+
+                let unit_direction = intersection.ray.dir.normalized();
+
+                let new_dir = refract_or_reflect(unit_direction, intersection.normal, refraction_ratio, sampler.uniform_scalar_unit());
+
+                ScatteringResult::AttenuateNext(RGBA::new(1.0, 1.0, 1.0, 1.0), new_dir)
+            },
+            MaterialInteraction::Emit{ emited_color } =>
+            {
+                // The object is emitting light - return it and no scattering
+                // is required
+
+                ScatteringResult::Emit(emited_color)
+            },
+        }
+    }
+
+    fn termination_contdition(_attenuation: RGBA) -> RGBA
+    {
+        // This ray has not been able to find an emitting surface -
+        // we can't return any light to the camera
+
+        RGBA::new(0.0, 0.0, 0.0, 1.0)
+    }
+}
+
+struct LocalLighting
+{
+}
+
+impl ScatteringFunction for LocalLighting
+{
+    fn max_rays() -> usize
+    {
+        5
+    }
+
+    fn scatter_ray<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, _sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult
+    {
+        match material_interaction
+        {
+            MaterialInteraction::Diffuse{ diffuse_color } =>
+            {
+                // This is the main approximation to make "local lighting"
+                // must raster to render.
+                // Instead of scattering from diffuse surfaces,
+                // we explicitly see which lights are visible,
+                // apply a basic Phong local lighting model,
+                // and then Emit that light back towards the camera.
+
+                // Ambient
+
+                let mut sum = diffuse_color.multiplied_by_scalar(0.2);
+
+                // Shadow rays, for lights in the first lighting region that
+                // covers the intersection location
+
+                let int_location = intersection.location();
+
+                if let Some(lighting_region) = scene.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(int_location)).nth(0)
+                {
+                    // The factor for each light is 0.8 (totall diffuse component) / num lights
+
+                    let diffuse_factor = 0.8 / (lighting_region.local_points.len() as f64);
+
+                    for local_light_loc in lighting_region.local_points.iter()
+                    {
+                        let light_dir = (local_light_loc - int_location).normalized();
+                        let geom_factor = intersection.normal.dot(light_dir);
+                        if geom_factor > 0.0
+                        {
+                            stats.num_rays += 1;
+
+                            if let Some(shadow_int) = scene.trace_intersection(&Ray::new(int_location, light_dir))
+                            {
+                                if let MaterialInteraction::Emit{ emited_color } = shadow_int.material.get_surface_interaction(&shadow_int.surface)
+                                {
+                                    // Our shadow ray has hit an emitting surface - add a diffuse
+                                    // component calculated from this light.
+                                    // Clamp color as the extra light required by the global mode is not needed.
+
+                                    sum = sum + diffuse_color.combined_with(&emited_color.clamped()).multiplied_by_scalar(diffuse_factor * geom_factor);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                ScatteringResult::Emit(sum)
+            },
+            MaterialInteraction::Reflection{ attenuate_color, .. } =>
+            {
+                ScatteringResult::AttenuateNext(attenuate_color, reflect(intersection.ray.dir, intersection.normal))
+            },
+            MaterialInteraction::Refraction{ ior } =>
+            {
+                let refraction_ratio = if intersection.face == Face::FrontFace
+                {
+                    1.0 / ior
+                }
+                else
+                {
+                    ior
+                };
+
+                let unit_direction = intersection.ray.dir.normalized();
+
+                let new_dir = refract_or_reflect(unit_direction, intersection.normal, refraction_ratio, 1.0);
+
+                ScatteringResult::AttenuateNext(RGBA::new(1.0, 1.0, 1.0, 1.0), new_dir)
+            },
+            MaterialInteraction::Emit{ emited_color } =>
+            {
+                ScatteringResult::Emit(emited_color)
+            },
+        }
+    }
+
+    fn termination_contdition(attenuation: RGBA) -> RGBA
+    {
+        // For local coloring, best results are obtained for
+        // reflective surfaces if we just assume they are fully lit.
+
+        attenuation
     }
 }
 
