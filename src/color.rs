@@ -16,6 +16,11 @@ impl RGBA
         RGBA { r, g, b, a}
     }
 
+    pub fn clamped(&self) -> Self
+    {
+        RGBA::new(self.r.clamp(0.0, 1.0), self.g.clamp(0.0, 1.0), self.b.clamp(0.0, 1.0), self.a.clamp(0.0, 1.0))
+    }
+
     pub fn multiplied_by_scalar(&self, mul: Scalar) -> Self
     {
         RGBA::new(self.r * mul, self.g * mul, self.b * mul, self.a)

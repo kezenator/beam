@@ -59,7 +59,7 @@ impl SceneDescription
         {
             Object::new(
                 Sphere::new(centre, radius),
-                Material::emit(RGBA::new(brightness, brightness, brightness, 1.0)))
+                Material::emit(Texture::solid(RGBA::new(brightness, brightness, brightness, 1.0))))
         };
 
         let rectangle = |point: Point3, u: Point3, v: Point3| -> Object
