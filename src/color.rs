@@ -1,6 +1,6 @@
 use crate::math::Scalar;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct RGBA
 {
     r: Scalar,

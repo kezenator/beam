@@ -57,7 +57,7 @@ impl Surface for Rectangle
 
                 if int_u >= 0.0 && int_u <= self.len_u && int_v >= 0.0 && int_v <= self.len_v
                 {
-                    let normal = self.normal.clone();
+                    let normal = self.normal;
 
                     return Some(ray.new_intersection(distance, normal))
                 }

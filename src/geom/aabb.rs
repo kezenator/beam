@@ -3,22 +3,22 @@ use crate::geom::{Surface, BoundingSurface, Volume};
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 
-pub struct AABB
+pub struct Aabb
 {
     min: Point3,
     max: Point3,
 }
 
-impl AABB
+impl Aabb
 {
     pub fn new(min: Point3, max: Point3) -> Self
     {
-        AABB { min, max }
+        Aabb { min, max }
     }
 
-    pub fn union(&self, other: &AABB) -> Self
+    pub fn union(&self, other: &Aabb) -> Self
     {
-        AABB
+        Aabb
         {
             min: Point3::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y), self.min.z.min(other.min.z)),
             max: Point3::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y), self.max.z.max(other.max.z)),
@@ -26,7 +26,7 @@ impl AABB
     }
 }
 
-impl Surface for AABB
+impl Surface for Aabb
 {
     fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
@@ -73,7 +73,7 @@ impl Surface for AABB
     }
 }
 
-impl BoundingSurface for AABB
+impl BoundingSurface for Aabb
 {
     fn may_intersect_in_range(&self, ray: &Ray, range: &RayRange) -> bool
     {
@@ -113,7 +113,7 @@ impl BoundingSurface for AABB
     }
 }
 
-impl Volume for AABB
+impl Volume for Aabb
 {
     fn is_point_inside(&self, point: Point3) -> bool
     {

@@ -6,7 +6,7 @@ use crate::lighting::LightingRegion;
 use crate::material::Material;
 use crate::camera::Camera;
 use crate::object::Object;
-use crate::geom::{AABB, Plane, Sphere, Rectangle, Blob, BlobPart, BoundedSurface, csg};
+use crate::geom::{Aabb, Plane, Sphere, Rectangle, Blob, BlobPart, BoundedSurface, csg};
 use crate::texture::Texture;
 use crate::sample::Sampler;
 use crate::render::RenderOptions;
@@ -73,7 +73,7 @@ impl SceneDescription
         let aabb = |min: Point3, max: Point3, color: RGBA| -> Object
         {
             Object::new(
-                AABB::new(min, max),
+                Aabb::new(min, max),
                 Material::diffuse(Texture::solid(color)))
         };
 
@@ -130,8 +130,8 @@ impl SceneDescription
             let min = Point3::new(center.x - radius, center.y - radius, center.z - radius);
             let max = Point3::new(center.x + radius, center.y + radius, center.z + radius);
 
-            let diff = csg::Difference::new(AABB::new(min, max), Sphere::new(center, 1.3 * radius));
-            let aabb = AABB::new(min, max);
+            let diff = csg::Difference::new(Aabb::new(min, max), Sphere::new(center, 1.3 * radius));
+            let aabb = Aabb::new(min, max);
 
             Object::new(
                 BoundedSurface::new(aabb, diff),
@@ -196,7 +196,7 @@ impl SceneDescription
 
                 // Lights
                 light_sphere(Point3::new(-2.0, 1.0, 1.0), 0.2, 4.0),
-                light_sphere(Point3::new(0.0, 500.0, 0.0), 450.0, 0.5),
+                light_sphere(Point3::new(0.0, 500.0, 0.0), 450.0, 0.1),
 
                 // Ground
                 plane(Point3::new(0.0, -3.51, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),

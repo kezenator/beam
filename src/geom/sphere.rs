@@ -93,7 +93,7 @@ impl Surface for Sphere
     {
         let oc = ray.source - self.center;
         let a = ray.dir.magnitude_squared();
-        let half_b = oc.dot(ray.dir.clone());
+        let half_b = oc.dot(ray.dir);
         let c = oc.magnitude_squared() - (self.radius * self.radius);
 
         let discriminant = half_b*half_b - a*c;
@@ -134,7 +134,7 @@ impl BoundingSurface for Sphere
     {
         let oc = ray.source - self.center;
         let a = ray.dir.magnitude_squared();
-        let half_b = oc.dot(ray.dir.clone());
+        let half_b = oc.dot(ray.dir);
         let c = oc.magnitude_squared() - (self.radius * self.radius);
 
         let discriminant = half_b*half_b - a*c;

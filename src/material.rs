@@ -8,7 +8,7 @@ pub enum MaterialInteraction
     Diffuse{ diffuse_color: RGBA},
     Reflection{ attenuate_color: RGBA, fuzz: Scalar },
     Refraction{ ior: Scalar },
-    Emit{ emited_color: RGBA},
+    Emit{ emitted_color: RGBA},
 }
 
 pub enum Material
@@ -71,7 +71,7 @@ impl Material
             {
                 MaterialInteraction::Emit
                 {
-                    emited_color: texture.get_color_at(intersection.location()),
+                    emitted_color: texture.get_color_at(intersection.location()),
                 }
             },
         }

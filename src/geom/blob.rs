@@ -1,6 +1,6 @@
 use float_ord::FloatOrd;
 
-use crate::geom::{AABB, BoundedSurface, Surface, SurfaceIntersection};
+use crate::geom::{Aabb, BoundedSurface, Surface, SurfaceIntersection};
 use crate::math::{EPSILON, Scalar};
 use crate::ray::{Ray, RayRange};
 use crate::vec::{Dir3, Point3};
@@ -19,7 +19,7 @@ pub struct BlobPart
 
 impl Blob
 {
-    pub fn new(parts: Vec<BlobPart>, threshold: Scalar) -> BoundedSurface<AABB, Blob>
+    pub fn new(parts: Vec<BlobPart>, threshold: Scalar) -> BoundedSurface<Aabb, Blob>
     {
         assert!(!parts.is_empty());
 
@@ -42,7 +42,7 @@ impl Blob
 
             let oc = ray.source - part.center;
             let a = ray.dir.magnitude_squared();
-            let half_b = oc.dot(ray.dir.clone());
+            let half_b = oc.dot(ray.dir);
             let c = oc.magnitude_squared() - (part.radius * part.radius);
     
             let discriminant = half_b*half_b - a*c;
@@ -188,11 +188,11 @@ impl Surface for Blob
 
 impl BlobPart
 {
-    fn to_aabb(&self) -> AABB
+    fn to_aabb(&self) -> Aabb
     {
         let rad = self.radius.abs();
 
-        AABB::new(
+        Aabb::new(
             Point3::new(self.center.x - rad, self.center.y - rad, self.center.z - rad),
             Point3::new(self.center.x + rad, self.center.y + rad, self.center.z + rad))
     }

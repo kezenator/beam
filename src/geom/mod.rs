@@ -13,7 +13,7 @@ pub mod plane;
 pub mod rectangle;
 pub mod sphere;
 
-pub use aabb::AABB;
+pub use aabb::Aabb;
 pub use blob::{Blob, BlobPart};
 pub use bounds::BoundedSurface;
 pub use disc::Disc;

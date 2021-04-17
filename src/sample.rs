@@ -29,6 +29,11 @@ impl Sampler
         }
     }
 
+    pub fn uniform_index(&mut self, len: usize) -> usize
+    {
+        (self.rng.next_u64() % (len as u64)) as usize
+    }
+
     pub fn uniform_scalar_unit(&mut self) -> Scalar
     {
         self.rng.sample(self.dist_uniform_scalar_unit)

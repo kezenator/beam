@@ -36,7 +36,7 @@ impl Surface for Plane
 
             if range.contains(distance)
             {
-                let normal = self.normal.clone();
+                let normal = self.normal;
 
                 return Some(ray.new_intersection(distance, normal));
             }

@@ -25,7 +25,7 @@ impl Texture
         {
             Texture::Solid(c1) =>
             {
-                c1.clone()
+                *c1
             },
             Texture::Checkerboard(c1, c2) =>
             {
@@ -33,11 +33,11 @@ impl Texture
                 
                 if ((scalar as i64) & 1) != 0
                 {
-                    c1.clone()
+                    *c1
                 }
                 else
                 {
-                    c2.clone()
+                    *c2
                 }
             }
         }

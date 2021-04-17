@@ -49,7 +49,7 @@ impl Surface for Disc
 
                 if dist_squared < (self.radius * self.radius)
                 {
-                    let normal = self.normal.clone();
+                    let normal = self.normal;
 
                     return Some(ray.new_intersection(distance, normal))
                 }
@@ -67,7 +67,7 @@ impl SampleableSurface for Disc
         // First, calcualte a random point on the disc.
         // For this, we need a set of ortho-normal bases
 
-        let u = if self.normal.x > 0.9 { Dir3::new(0.0, 1.0, 0.0) } else { Dir3::new(1.0, 0.0, 0.0) };
+        let u = if self.normal.x.abs() > 0.9 { Dir3::new(0.0, 1.0, 0.0) } else { Dir3::new(1.0, 0.0, 0.0) };
         let v = self.normal.cross(u).normalized();
         let u = self.normal.cross(v);
 
