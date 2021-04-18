@@ -1,6 +1,6 @@
 use crate::math::Scalar;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct RGBA
 {
     r: Scalar,
@@ -19,6 +19,11 @@ impl RGBA
     pub fn clamped(&self) -> Self
     {
         RGBA::new(self.r.clamp(0.0, 1.0), self.g.clamp(0.0, 1.0), self.b.clamp(0.0, 1.0), self.a.clamp(0.0, 1.0))
+    }
+
+    pub fn max_color_component(&self) -> Scalar
+    {
+        self.r.max(self.g.max(self.b))
     }
 
     pub fn multiplied_by_scalar(&self, mul: Scalar) -> Self

@@ -3,7 +3,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Mod};
 use std::time::Duration;
 
-use beam::desc::SceneDescription;
+use beam::desc::{SceneDescription, StandardScene};
 use beam::math::Scalar;
 use beam::render::{Renderer, RenderOptions, RenderIlluminationMode};
 use beam::vec::{Mat4, Point3, Vec3, Vec4};
@@ -101,7 +101,7 @@ impl AppState
         AppState
         {
             options: RenderOptions::new(width, height),
-            desc: SceneDescription::new(),
+            desc: SceneDescription::new(StandardScene::Cornell),
         }
     }
 
@@ -117,6 +117,16 @@ impl AppState
 
         let handled = match keycode
         {
+            Keycode::Num1 =>
+            {
+                self.desc = SceneDescription::new(StandardScene::BeamExample);
+                true
+            },
+            Keycode::Num2 =>
+            {
+                self.desc = SceneDescription::new(StandardScene::Cornell);
+                true
+            },
             Keycode::L =>
             {
                 self.options.illumination_mode = match self.options.illumination_mode

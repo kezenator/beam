@@ -36,16 +36,54 @@ pub trait ScatteringFunction
     fn termination_contdition(attenuation: RGBA) -> RGBA;
 }
 
+#[derive(Clone, Copy)]
 pub struct SceneSampleStats
 {
+    pub num_samples: u64,
     pub num_rays: u64,
+    pub max_rays: usize,
+    pub stopped_due_to_max_rays: u64,
+    pub stopped_due_to_min_atten: u64,
 }
 
 impl SceneSampleStats
 {
     pub fn new() -> Self
     {
-        SceneSampleStats { num_rays: 0 }
+        SceneSampleStats
+        {
+            num_samples: 0,
+            num_rays: 0,
+            max_rays: 0,
+            stopped_due_to_max_rays: 0,
+            stopped_due_to_min_atten: 0,
+        }
+    }
+
+    pub fn to_short_debug_string(&self) -> String
+    {
+        format!("Rays/Sample: [{:.2} avg, {:.2} max] Early-Exit: [{:.2}% max rays, {:.2}% min color]",
+            (self.num_rays as Scalar) / (self.num_samples as Scalar),
+            self.max_rays,
+            100.0 * (self.stopped_due_to_max_rays as Scalar) / (self.num_samples as Scalar),
+            100.0 * (self.stopped_due_to_min_atten as Scalar) / (self.num_samples as Scalar))
+    }
+}
+
+impl std::ops::Add for SceneSampleStats
+{
+    type Output = SceneSampleStats;
+
+    fn add(self, rhs: SceneSampleStats) -> Self::Output
+    {
+        SceneSampleStats
+        {
+            num_samples: self.num_samples + rhs.num_samples,
+            num_rays: self.num_rays + rhs.num_rays,
+            max_rays: self.max_rays.max(rhs.max_rays),
+            stopped_due_to_max_rays: self.stopped_due_to_max_rays + rhs.stopped_due_to_max_rays,
+            stopped_due_to_min_atten: self.stopped_due_to_min_atten + rhs.stopped_due_to_min_atten,
+        }
     }
 }
 
@@ -79,13 +117,20 @@ impl Scene
 
     pub fn path_trace<S: ScatteringFunction>(&self, ray: Ray, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
     {
+        stats.num_samples += 1;
+
         let mut cur_ray = ray;
         let mut cur_attenuation = RGBA::new(1.0, 1.0, 1.0, 1.0);
         let mut cur_probability = 1.0;
 
-        for _ in 0..S::max_rays()
+        for ray_num in 0..S::max_rays()
         {
             stats.num_rays += 1;
+
+            if (ray_num + 1) > stats.max_rays
+            {
+                stats.max_rays = ray_num + 1;
+            }
 
             match self.trace_intersection(&cur_ray)
             {
@@ -101,6 +146,22 @@ impl Scene
                             cur_attenuation = cur_attenuation.combined_with(&attenuation_color);
                             cur_probability *= probability;
 
+                            if cur_attenuation.max_color_component() < 1.0e-4
+                            {
+                                // The current attenuation has dropped below what can be seen
+                                // even with a 12-bit HDR monitor.
+                                // What may be occuring is that a ray keeps bouncing around,
+                                // the attenuation keeps building, the probability keeps getting
+                                // lower. Eventually we have a sample that's a random color
+                                // close to black, with a very low probability.
+                                // This gets divided to a very bright color.
+                                // Instead - just terminate early and return a real black.
+
+                                stats.stopped_due_to_min_atten += 1;
+
+                                return RGBA::new(0.0, 0.0, 0.0, 1.0);
+                            }
+
                             continue;
                         },
                         ScatteringResult::Emit{ emitted_color, probability } =>
@@ -108,7 +169,9 @@ impl Scene
                             // We've reached an emitting surface - return
                             // the total contribution
 
-                            return emitted_color.combined_with(&cur_attenuation).divided_by_scalar(cur_probability * probability);
+                            let final_probability = cur_probability * probability;
+
+                            return emitted_color.combined_with(&cur_attenuation).divided_by_scalar(final_probability);
                         },
                     }
                 },
@@ -125,6 +188,8 @@ impl Scene
         // We've traced down too many levels of rays!
         // Ask the scattering function what
         // termination condition they want
+
+        stats.stopped_due_to_max_rays += 1;
 
         S::termination_contdition(cur_attenuation).divided_by_scalar(cur_probability)
     }

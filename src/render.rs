@@ -94,17 +94,16 @@ impl Drop for Renderer
 struct SampleResult
 {
     pixels: Vec<PixelUpdate>,
+    stats: SceneSampleStats,
     duration: Duration,
-    num_rays: u64,
 }
 
 struct RenderState
 {
     options: RenderOptions,
     desc: SceneDescription,
-    num_pixel_samples: u64,
+    stats: SceneSampleStats,
     total_duration: Duration,
-    total_rays_cast: u64,
     pixels: Vec<color::RGBA>,
 }
 
@@ -118,9 +117,8 @@ impl RenderState
         {
             options: options,
             desc: desc,
-            num_pixel_samples: 0,
+            stats: SceneSampleStats::new(),
             total_duration: Duration::default(),
-            total_rays_cast: 0,
             pixels: vec![color::RGBA::new(0.0, 0.0, 0.0, 1.0); num_pixels],
         }
     }
@@ -168,7 +166,7 @@ fn render_thread(options: RenderOptions, desc: SceneDescription, sender: Sender<
 
         let mut completed_samples = 1;
 
-        for requested_samples in [8, 32, 128, 512, 2048].iter()
+        for requested_samples in [8, 32, 128, 512, 2048, 8096].iter()
         {
             let new_samples = requested_samples - completed_samples;
 
@@ -293,13 +291,10 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
 
         while let Ok(chunk) = sub_receiver.try_recv()
         {
-            let duration = chunk.duration;
-            let num_rays = chunk.num_rays;
-            let mut new_pixels = chunk.pixels;
+            state.stats = state.stats + chunk.stats;
+            state.total_duration = state.total_duration + chunk.duration;
 
-            state.num_pixel_samples += (new_pixels.len() as u64) * (new_samples_per_pixel as u64);
-            state.total_duration += duration;
-            state.total_rays_cast += num_rays;
+            let mut new_pixels = chunk.pixels;
 
             for mut pixel in new_pixels.iter_mut()
             {
@@ -365,9 +360,9 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
 
 fn stats_to_string(state: &RenderState) -> String
 {
-    format!(" [{}/sample, {:.2} rays/sample]",
-        time_per_sample(&state.total_duration, &state.num_pixel_samples),
-        (state.total_rays_cast as f64) / (state.num_pixel_samples as f64))
+    format!(" [{}/sample, {}]",
+        time_per_sample(&state.total_duration, &state.stats.num_samples),
+        state.stats.to_short_debug_string())
 }
 
 fn time_per_sample(duration: &Duration, samples: &u64) -> String
@@ -404,8 +399,8 @@ fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_sampl
         let result = SampleResult
         {
             pixels,
+            stats,
             duration,
-            num_rays: stats.num_rays,
         };
 
         if !sender.send(result).is_ok()
