@@ -5,12 +5,14 @@ use crate::vec::Point3;
 
 mod beam;
 mod cornell;
+mod furnace;
 
 #[derive(Clone)]
 pub enum StandardScene
 {
     BeamExample,
     Cornell,
+    Furnace,
 }
 
 #[derive(Clone)]
@@ -31,6 +33,7 @@ impl SceneDescription
         {
             StandardScene::BeamExample => beam::generate_description(),
             StandardScene::Cornell => cornell::generate_description(),
+            StandardScene::Furnace => furnace::generate_description(),
         }
     }
 
@@ -40,6 +43,7 @@ impl SceneDescription
         {
             StandardScene::BeamExample => beam::generate_scene(self, options),
             StandardScene::Cornell => cornell::generate_scene(self, options),
+            StandardScene::Furnace => furnace::generate_scene(self, options),
         }
     }
 }

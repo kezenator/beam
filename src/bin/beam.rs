@@ -101,7 +101,7 @@ impl AppState
         AppState
         {
             options: RenderOptions::new(width, height),
-            desc: SceneDescription::new(StandardScene::Cornell),
+            desc: SceneDescription::new(StandardScene::Furnace),
         }
     }
 
@@ -125,6 +125,11 @@ impl AppState
             Keycode::Num2 =>
             {
                 self.desc = SceneDescription::new(StandardScene::Cornell);
+                true
+            },
+            Keycode::Num3 =>
+            {
+                self.desc = SceneDescription::new(StandardScene::Furnace);
                 true
             },
             Keycode::L =>

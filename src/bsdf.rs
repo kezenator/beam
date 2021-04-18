@@ -9,20 +9,78 @@ pub trait Bsdf
     fn reflectance(&self, input_dir: Dir3, output_dir: Dir3) -> Scalar;
 }
 
-pub struct Lambertian
+pub type Lambertian = LambertianUniform;
+
+pub struct LambertianUniform
 {
     normal: Dir3,
 }
 
-impl Lambertian
+impl LambertianUniform
 {
     pub fn new(normal: Dir3) -> Self
     {
-        Lambertian { normal }
+        LambertianUniform { normal }
     }
 }
 
-impl Bsdf for Lambertian
+impl Bsdf for LambertianUniform
+{
+    fn generate_random_sample_direction_and_calc_pdf(&self, sampler: &mut Sampler) -> (Dir3, Scalar)
+    {
+        let mut dir = sampler.uniform_dir_on_unit_sphere();
+
+        if dir.dot(self.normal) <= 0.0
+        {
+            dir = -dir;
+        }
+
+        (dir, 0.5 * ScalarConsts::FRAC_1_PI)
+    }
+
+    fn calculate_pdf_for_dir(&self, dir: Dir3) -> Scalar
+    {
+        let cosine = self.normal.dot(dir.normalized());
+
+        if cosine >= 0.0
+        {
+            0.5 * ScalarConsts::FRAC_1_PI
+        }
+        else
+        {
+            0.0
+        }
+    }
+
+    fn reflectance(&self, _input_dir: Dir3, output_dir: Dir3) -> Scalar
+    {
+        let cosine = self.normal.dot(output_dir.normalized());
+
+        if cosine >= 0.0
+        {
+            cosine * ScalarConsts::FRAC_1_PI
+        }
+        else
+        {
+            0.0
+        }
+    }
+}
+
+pub struct LambertianImportance
+{
+    normal: Dir3,
+}
+
+impl LambertianImportance
+{
+    pub fn new(normal: Dir3) -> Self
+    {
+        LambertianImportance { normal }
+    }
+}
+
+impl Bsdf for LambertianImportance
 {
     fn generate_random_sample_direction_and_calc_pdf(&self, sampler: &mut Sampler) -> (Dir3, Scalar)
     {
@@ -40,9 +98,9 @@ impl Bsdf for Lambertian
         // Convert these to x/y/z parameters
         // TODO - for now we're just uniform sampling...
 
-        let x = (1.0 - r1 * r1).sqrt() * (2.0 * ScalarConsts::PI * r2).cos();
-        let y = (1.0 - r1 * r1).sqrt() * (2.0 * ScalarConsts::PI * r2).sin();
-        let z = r1;
+        let x = (1.0 - r1).sqrt() * (2.0 * ScalarConsts::PI * r2).cos();
+        let y = (1.0 - r1).sqrt() * (2.0 * ScalarConsts::PI * r2).sin();
+        let z = r1.sqrt();
 
         // // Calculate the direction, relative to the ONB
 
@@ -51,7 +109,7 @@ impl Bsdf for Lambertian
 
         // // Calculate the PDF
 
-        let pdf = 0.5 * ScalarConsts::PI;
+        let pdf = z * ScalarConsts::FRAC_1_PI;
 
         (dir, pdf)
     }
@@ -62,7 +120,7 @@ impl Bsdf for Lambertian
 
         if cosine >= 0.0
         {
-            0.5 * ScalarConsts::PI
+            cosine * ScalarConsts::FRAC_1_PI
         }
         else
         {
@@ -76,7 +134,7 @@ impl Bsdf for Lambertian
 
         if cosine >= 0.0
         {
-            cosine
+            cosine * ScalarConsts::FRAC_1_PI
         }
         else
         {
