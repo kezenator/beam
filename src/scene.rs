@@ -44,6 +44,7 @@ pub struct SceneSampleStats
     pub max_rays: usize,
     pub stopped_due_to_max_rays: u64,
     pub stopped_due_to_min_atten: u64,
+    pub stopped_due_to_min_prob: u64,
 }
 
 impl SceneSampleStats
@@ -57,16 +58,18 @@ impl SceneSampleStats
             max_rays: 0,
             stopped_due_to_max_rays: 0,
             stopped_due_to_min_atten: 0,
+            stopped_due_to_min_prob: 0,
         }
     }
 
     pub fn to_short_debug_string(&self) -> String
     {
-        format!("Rays/Sample: [{:.2} avg, {:.2} max] Early-Exit: [{:.2}% max rays, {:.2}% min color]",
+        format!("Rays/Sample: [{:.2} avg, {:.2} max] Early-Exit: [{:.2}% max rays, {:.2}% min color, {:.2}% min prob]",
             (self.num_rays as Scalar) / (self.num_samples as Scalar),
             self.max_rays,
             100.0 * (self.stopped_due_to_max_rays as Scalar) / (self.num_samples as Scalar),
-            100.0 * (self.stopped_due_to_min_atten as Scalar) / (self.num_samples as Scalar))
+            100.0 * (self.stopped_due_to_min_atten as Scalar) / (self.num_samples as Scalar),
+            100.0 * (self.stopped_due_to_min_prob as Scalar) / (self.num_samples as Scalar))
     }
 }
 
@@ -83,6 +86,7 @@ impl std::ops::Add for SceneSampleStats
             max_rays: self.max_rays.max(rhs.max_rays),
             stopped_due_to_max_rays: self.stopped_due_to_max_rays + rhs.stopped_due_to_max_rays,
             stopped_due_to_min_atten: self.stopped_due_to_min_atten + rhs.stopped_due_to_min_atten,
+            stopped_due_to_min_prob: self.stopped_due_to_min_prob + rhs.stopped_due_to_min_prob,
         }
     }
 }
@@ -158,6 +162,18 @@ impl Scene
                                 // Instead - just terminate early and return a real black.
 
                                 stats.stopped_due_to_min_atten += 1;
+
+                                return RGBA::new(0.0, 0.0, 0.0, 1.0);
+                            }
+
+                            if cur_probability < 1.0e-6
+                            {
+                                // The current probability is getting really small.
+                                // This means this sample gets multipled by a big amount
+                                // and has a big effect on the final image. This creates
+                                // bright specks of noise.cur_probability
+
+                                stats.stopped_due_to_min_prob += 1;
 
                                 return RGBA::new(0.0, 0.0, 0.0, 1.0);
                             }
@@ -288,19 +304,12 @@ impl ScatteringFunction for GlobalLighting
                     }
                 };
 
-                if scatter_dir.dot(intersection.normal) <= 0.0
-                {
-                    ScatteringResult::emit(
-                        RGBA::new(0.0, 0.0, 0.0, 1.0),
-                        probability)
-                }
-                else
-                {
-                    ScatteringResult::scatter(
-                        diffuse_color.multiplied_by_scalar(scatter_dir.dot(intersection.normal)),
-                        scatter_dir,
-                        probability)
-                }
+                let reflectance = lambertian.reflectance((-1.0 * intersection.ray.dir).normalized(), scatter_dir);
+
+                ScatteringResult::scatter(
+                    diffuse_color.multiplied_by_scalar(reflectance),
+                    scatter_dir,
+                    probability)
             },
             MaterialInteraction::Reflection{ attenuate_color, fuzz } =>
             {
@@ -358,7 +367,7 @@ impl ScatteringFunction for GlobalLighting
                             (refract_dir, 1.0 - reflect_probability)
                         };
 
-                        ScatteringResult::scatter(RGBA::new(probability, probability, probability, 1.), dir, probability)
+                        ScatteringResult::scatter(RGBA::new(probability, probability, probability, 1.0), dir, probability)
                     },
                 }
             },

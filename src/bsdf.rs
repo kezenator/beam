@@ -6,6 +6,7 @@ pub trait Bsdf
 {
     fn generate_random_sample_direction_and_calc_pdf(&self, sampler: &mut Sampler) -> (Dir3, Scalar);
     fn calculate_pdf_for_dir(&self, dir: Dir3) -> Scalar;
+    fn reflectance(&self, input_dir: Dir3, output_dir: Dir3) -> Scalar;
 }
 
 pub struct Lambertian
@@ -31,26 +32,26 @@ impl Bsdf for Lambertian
         let v = self.normal.cross(u).normalized();
         let u = self.normal.cross(v);
 
-        // Generate an angle from two random variables
+        // Generate two random variables
 
         let r1 = sampler.uniform_scalar_unit();
         let r2 = sampler.uniform_scalar_unit();
 
-        let z = (1.0 - r2).sqrt();
+        // Convert these to x/y/z parameters
+        // TODO - for now we're just uniform sampling...
 
-        let phi = 2.0 * ScalarConsts::PI * r1;
-        let xy_factor = r2.sqrt();
+        let x = (1.0 - r1 * r1).sqrt() * (2.0 * ScalarConsts::PI * r2).cos();
+        let y = (1.0 - r1 * r1).sqrt() * (2.0 * ScalarConsts::PI * r2).sin();
+        let z = r1;
 
-        let x = phi.cos() * xy_factor;
-        let y = phi.sin() * xy_factor;
-
-        // Calculate the direction, relative to the ONB
+        // // Calculate the direction, relative to the ONB
 
         let dir = (x * u) + (y * v) + (z * self.normal);
+        let dir = dir.normalized();
 
-        // Calculate the PDF
+        // // Calculate the PDF
 
-        let pdf = self.normal.dot(dir);
+        let pdf = 0.5 * ScalarConsts::PI;
 
         (dir, pdf)
     }
@@ -61,7 +62,21 @@ impl Bsdf for Lambertian
 
         if cosine >= 0.0
         {
-            cosine / ScalarConsts::PI
+            0.5 * ScalarConsts::PI
+        }
+        else
+        {
+            0.0
+        }
+    }
+
+    fn reflectance(&self, _input_dir: Dir3, output_dir: Dir3) -> Scalar
+    {
+        let cosine = self.normal.dot(output_dir.normalized());
+
+        if cosine >= 0.0
+        {
+            cosine
         }
         else
         {

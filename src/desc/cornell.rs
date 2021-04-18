@@ -50,13 +50,20 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
     {
         Object::new(
             Rectangle::new(point, u, v),
-            Material::emit(Texture::solid(RGBA::new(4.0, 4.0, 4.0, 1.0))))
+            Material::emit(Texture::solid(RGBA::new(15.0, 15.0, 15.0, 1.0))))
     };
 
     Scene::new(
         Camera::new(desc.camera_location, desc.camera_look_at, desc.camera_up, desc.camera_fov, (options.width as f64) / (options.height as f64)),
         // Lighting regions
         vec![
+            LightingRegion::new_2(
+                Aabb::new(Point3::new(260.0, 164.0, 325.0), Point3::new(425.0, 166.0, 490.0)),
+                Rectangle::new(Point3::new(213.0, 554.0, 227.0), Point3::new(130.0, 0.0, 0.0), Point3::new(0.0, 0.0, 105.0)),
+                Sphere::new(Point3::new(342.5, 240.0, 407.5), 60.0),
+                vec![
+                    Point3::new(227.5, 554.0, 279.5),
+                ]),
             LightingRegion::new_1(
                 Aabb::new(Point3::new(-1.0, -1.0, -1.0), Point3::new(556.0, 556.0, 556.0)),
                 Rectangle::new(Point3::new(213.0, 554.0, 227.0), Point3::new(130.0, 0.0, 0.0), Point3::new(0.0, 0.0, 105.0)),
