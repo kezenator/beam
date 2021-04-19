@@ -339,7 +339,7 @@ impl ScatteringFunction for GlobalLighting
             },
             MaterialInteraction::Refraction{ ior } =>
             {
-                let refraction_ratio = if intersection.face == Face::FrontFace
+                let refraction_ratio = if intersection.face == Face::Front
                 {
                     1.0 / ior
                 }
@@ -421,7 +421,7 @@ impl ScatteringFunction for LocalLighting
             },
             MaterialInteraction::Refraction{ ior } =>
             {
-                let refraction_ratio = if intersection.face == Face::FrontFace
+                let refraction_ratio = if intersection.face == Face::Front
                 {
                     1.0 / ior
                 }

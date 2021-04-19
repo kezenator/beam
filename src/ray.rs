@@ -22,7 +22,7 @@ impl Ray
             SurfaceIntersection
             {
                 ray: self,
-                face: Face::FrontFace,
+                face: Face::Front,
                 distance: distance,
                 normal: normal,
             }
@@ -32,7 +32,7 @@ impl Ray
             SurfaceIntersection
             {
                 ray: self,
-                face: Face::BackFace,
+                face: Face::Back,
                 distance: distance,
                 normal: -normal,
             }

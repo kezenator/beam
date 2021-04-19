@@ -6,8 +6,8 @@ use crate::vec::{Dir3, Point3};
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Face
 {
-    FrontFace,
-    BackFace,
+    Front,
+    Back,
 }
 
 pub struct SurfaceIntersection<'r>

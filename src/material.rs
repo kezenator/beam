@@ -1,5 +1,5 @@
 use crate::color::RGBA;
-use crate::intersection::SurfaceIntersection;
+use crate::intersection::{Face, SurfaceIntersection};
 use crate::math::Scalar;
 use crate::texture::Texture;
 
@@ -17,6 +17,7 @@ pub enum Material
     Metal(Texture, Scalar),
     Dielectric(Scalar),
     Emit(Texture),
+    EmitFrontFaceOnly(Texture),
 }
 
 impl Material
@@ -39,6 +40,11 @@ impl Material
     pub fn emit(texture: Texture) -> Material
     {
         Material::Emit(texture)
+    }
+
+    pub fn emit_front_face_only(texture: Texture) -> Material
+    {
+        Material::EmitFrontFaceOnly(texture)
     }
 
     pub fn get_surface_interaction<'r>(&self, intersection: &SurfaceIntersection<'r>) -> MaterialInteraction
@@ -72,6 +78,22 @@ impl Material
                 MaterialInteraction::Emit
                 {
                     emitted_color: texture.get_color_at(intersection.location()),
+                }
+            },
+            Material::EmitFrontFaceOnly(texture) =>
+            {
+                match intersection.face
+                {
+                    Face::Front =>
+                        MaterialInteraction::Emit
+                        {
+                            emitted_color: texture.get_color_at(intersection.location()),
+                        },
+                    Face::Back =>
+                        MaterialInteraction::Diffuse
+                        {
+                            diffuse_color: RGBA::new(0.0, 0.0, 0.0, 1.0),
+                        },
                 }
             },
         }

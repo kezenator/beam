@@ -101,7 +101,7 @@ impl AppState
         AppState
         {
             options: RenderOptions::new(width, height),
-            desc: SceneDescription::new(StandardScene::Furnace),
+            desc: SceneDescription::new(StandardScene::Cornell),
         }
     }
 

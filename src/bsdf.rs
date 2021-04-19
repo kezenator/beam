@@ -9,7 +9,7 @@ pub trait Bsdf
     fn reflectance(&self, input_dir: Dir3, output_dir: Dir3) -> Scalar;
 }
 
-pub type Lambertian = LambertianUniform;
+pub type Lambertian = LambertianImportance;
 
 pub struct LambertianUniform
 {
