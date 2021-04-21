@@ -1,7 +1,7 @@
 use crate::color;
 use crate::desc::SceneDescription;
 use crate::math::Scalar;
-use crate::scene::{Scene, SceneSampleStats};
+use crate::scene::{SamplingMode, Scene, SceneSampleStats};
 use crate::sample::Sampler;
 
 use std::time::{Instant, Duration};
@@ -23,6 +23,7 @@ pub struct RenderOptions
     pub width: u32,
     pub height: u32,
     pub illumination_mode: RenderIlluminationMode,
+    pub sampling_mode: SamplingMode,
     pub max_blockiness: u32,
 }
 
@@ -31,9 +32,10 @@ impl RenderOptions
     pub fn new(width: u32, height: u32) -> Self
     {
         let illumination_mode = RenderIlluminationMode::Global;
+        let sampling_mode = SamplingMode::BsdfAndLights;
         let max_blockiness = 1024;
 
-        RenderOptions { width, height, illumination_mode, max_blockiness }
+        RenderOptions { width, height, illumination_mode, sampling_mode, max_blockiness }
     }
 }
 

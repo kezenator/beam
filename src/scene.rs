@@ -10,6 +10,7 @@ use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::vec::{Dir3, Point3, RefractResult, ray_reflect, ray_refract_or_reflect};
 
+#[derive(Copy, Clone)]
 pub enum SamplingMode
 {
     Uniform,
@@ -107,6 +108,7 @@ impl std::ops::Add for SceneSampleStats
 
 pub struct Scene
 {
+    sampling_mode: SamplingMode,
     camera: Camera,
     lighting_regions: Vec<LightingRegion>,
     objects: Vec<Object>,
@@ -114,9 +116,9 @@ pub struct Scene
 
 impl Scene
 {
-    pub fn new(camera: Camera, lighting_regions: Vec<LightingRegion>, objects: Vec<Object>) -> Self
+    pub fn new(sampling_mode: SamplingMode, camera: Camera, lighting_regions: Vec<LightingRegion>, objects: Vec<Object>) -> Self
     {
-        Scene { camera, lighting_regions, objects }
+        Scene { sampling_mode, camera, lighting_regions, objects }
     }
 
     pub fn path_trace_global_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
@@ -256,11 +258,9 @@ impl Scene
 
     fn scatter<'r>(&self, intersection: &'r SurfaceIntersection<'r>, bsdf: Box<dyn Bsdf>, sampler: &mut Sampler) -> (Dir3, Scalar, Scalar)
     {
-        let sampling_mode = SamplingMode::BsdfAndLights;
-
         let location = intersection.location();
 
-        let (scatter_dir, probability) = match sampling_mode
+        let (scatter_dir, probability) = match self.sampling_mode
         {
             SamplingMode::Uniform =>
             {

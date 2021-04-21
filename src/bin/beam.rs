@@ -6,6 +6,7 @@ use std::time::Duration;
 use beam::desc::{SceneDescription, StandardScene};
 use beam::math::Scalar;
 use beam::render::{Renderer, RenderOptions, RenderIlluminationMode};
+use beam::scene::SamplingMode;
 use beam::vec::{Mat4, Point3, Vec3, Vec4};
 
 fn main() -> Result<(), String>
@@ -132,6 +133,35 @@ impl AppState
                 self.desc = SceneDescription::new(StandardScene::Furnace);
                 true
             },
+            Keycode::F1 =>
+            {
+                self.options.illumination_mode = RenderIlluminationMode::Global;
+                self.options.sampling_mode = SamplingMode::BsdfAndLights;
+                true
+            }
+            Keycode::F2 =>
+            {
+                self.options.illumination_mode = RenderIlluminationMode::Global;
+                self.options.sampling_mode = SamplingMode::LightsOnly;
+                true
+            }
+            Keycode::F3 =>
+            {
+                self.options.illumination_mode = RenderIlluminationMode::Global;
+                self.options.sampling_mode = SamplingMode::BsdfOnly;
+                true
+            }
+            Keycode::F4 =>
+            {
+                self.options.illumination_mode = RenderIlluminationMode::Global;
+                self.options.sampling_mode = SamplingMode::Uniform;
+                true
+            }
+            Keycode::F5 =>
+            {
+                self.options.illumination_mode = RenderIlluminationMode::Local;
+                true
+            }
             Keycode::L =>
             {
                 self.options.illumination_mode = match self.options.illumination_mode
@@ -139,6 +169,7 @@ impl AppState
                     RenderIlluminationMode::Local => RenderIlluminationMode::Global,
                     RenderIlluminationMode::Global => RenderIlluminationMode::Local,
                 };
+                self.options.sampling_mode = SamplingMode::BsdfAndLights;
                 true
             },
             Keycode::Left =>

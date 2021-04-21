@@ -24,6 +24,7 @@ pub fn generate_description() -> SceneDescription
 pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 {
     Scene::new(
+        options.sampling_mode,
         Camera::new(desc.camera_location, desc.camera_look_at, desc.camera_up, desc.camera_fov, (options.width as f64) / (options.height as f64)),
         // Lighting regions
         vec![
