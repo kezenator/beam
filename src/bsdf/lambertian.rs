@@ -1,4 +1,5 @@
 use crate::bsdf::{Bsdf, random_sample_dir_from_onb_xyz};
+use crate::intersection::ShadingIntersection;
 use crate::math::{Scalar, ScalarConsts};
 use crate::sample::Sampler;
 use crate::vec::Dir3;
@@ -10,9 +11,9 @@ pub struct Lambertian
 
 impl Lambertian
 {
-    pub fn new(normal: Dir3) -> Self
+    pub fn new(intersection: &ShadingIntersection) -> Self
     {
-        Lambertian { normal }
+        Lambertian { normal: intersection.normal }
     }
 }
 

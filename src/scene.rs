@@ -1,14 +1,14 @@
 use crate::bsdf::{Bsdf, Lambertian, Phong};
 use crate::camera::Camera;
 use crate::color::LinearRGB;
-use crate::intersection::{Face, ObjectIntersection, SurfaceIntersection};
+use crate::intersection::{Face, ObjectIntersection, ShadingIntersection};
 use crate::lighting::LightingRegion;
 use crate::material::MaterialInteraction;
 use crate::math::{EPSILON, Scalar, ScalarConsts};
 use crate::object::Object;
 use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
-use crate::vec::{Dir3, Point3, RefractResult, ray_reflect, ray_refract_or_reflect};
+use crate::vec::{Dir3, Point3, RefractResult, bsdf_reflect, bsdf_refract_or_reflect};
 
 #[derive(Copy, Clone)]
 pub enum SamplingMode
@@ -47,7 +47,7 @@ impl ScatteringResult
 pub trait ScatteringFunction
 {
     fn max_rays() -> usize;
-    fn scatter_ray<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult;
+    fn scatter_ray(scene: &Scene, intersection: &ShadingIntersection, material_interaction: MaterialInteraction, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult;
     fn termination_contdition(attenuation: LinearRGB) -> LinearRGB;
 }
 
@@ -156,21 +156,22 @@ impl Scene
             {
                 Some(intersection) =>
                 {
-                    let material_interaction = intersection.material.get_surface_interaction(&intersection.surface);
+                    let shading_intersection = intersection.surface.into();
+                    let material_interaction = intersection.material.get_surface_interaction(&shading_intersection);
 
-                    match S::scatter_ray(&self, &intersection.surface, material_interaction, sampler, stats)
+                    match S::scatter_ray(&self, &shading_intersection, material_interaction, sampler, stats)
                     {
                         ScatteringResult::Scatter{ attenuation_color, bsdf } =>
                         {
-                            let (scatter_dir, reflectance, probability) = self.scatter(&intersection.surface, bsdf, sampler);
+                            let (scatter_dir, reflectance, probability) = self.scatter(&shading_intersection, bsdf, sampler);
 
-                            cur_ray = Ray::new(intersection.surface.location(), scatter_dir);
+                            cur_ray = Ray::new(shading_intersection.location, scatter_dir);
                             cur_attenuation = cur_attenuation.combined_with(&attenuation_color.multiplied_by_scalar(reflectance));
                             cur_probability *= probability;
                         },
                         ScatteringResult::Trace{ attenuation_color, next_dir, probability } =>
                         {
-                            cur_ray = Ray::new(intersection.surface.location(), next_dir);
+                            cur_ray = Ray::new(shading_intersection.location, next_dir);
                             cur_attenuation = cur_attenuation.combined_with(&attenuation_color);
                             cur_probability *= probability;
                         },
@@ -256,10 +257,8 @@ impl Scene
         self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(location)).nth(0)
     }
 
-    fn scatter<'r>(&self, intersection: &'r SurfaceIntersection<'r>, bsdf: Box<dyn Bsdf>, sampler: &mut Sampler) -> (Dir3, Scalar, Scalar)
+    fn scatter(&self, intersection: &ShadingIntersection, bsdf: Box<dyn Bsdf>, sampler: &mut Sampler) -> (Dir3, Scalar, Scalar)
     {
-        let location = intersection.location();
-
         let (scatter_dir, probability) = match self.sampling_mode
         {
             SamplingMode::Uniform =>
@@ -272,7 +271,7 @@ impl Scene
             },
             SamplingMode::LightsOnly =>
             {
-                match self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(location)).nth(0)
+                match self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(intersection.location)).nth(0)
                 {
                     Some(lighting_region) =>
                     {
@@ -280,9 +279,9 @@ impl Scene
             
                         let sampled_index = sampler.uniform_index(num_lights);
         
-                        let (dir, mut prob) = lighting_region.global_surfaces[sampled_index].generate_random_sample_direction_from_and_calc_pdf(location, sampler);
+                        let (dir, mut prob) = lighting_region.global_surfaces[sampled_index].generate_random_sample_direction_from_and_calc_pdf(intersection.location, sampler);
         
-                        let sampled_ray = Ray::new(intersection.location(), dir);
+                        let sampled_ray = Ray::new(intersection.location, dir);
         
                         for sum_index in 0..num_lights
                         {
@@ -304,7 +303,7 @@ impl Scene
             },
             SamplingMode::BsdfAndLights =>
             {
-                match self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(location)).nth(0)
+                match self.lighting_regions.iter().filter(|lr| lr.covered_volume.is_point_inside(intersection.location)).nth(0)
                 {
                     Some(lighting_region) =>
                     {
@@ -319,9 +318,9 @@ impl Scene
             
                             let sampled_index = sampler.uniform_index(num_lights);
             
-                            let (dir, mut prob) = lighting_region.global_surfaces[sampled_index].generate_random_sample_direction_from_and_calc_pdf(location, sampler);
+                            let (dir, mut prob) = lighting_region.global_surfaces[sampled_index].generate_random_sample_direction_from_and_calc_pdf(intersection.location, sampler);
             
-                            let sampled_ray = Ray::new(intersection.location(), dir);
+                            let sampled_ray = Ray::new(intersection.location, dir);
             
                             for sum_index in 0..num_lights
                             {
@@ -342,7 +341,7 @@ impl Scene
             
                             let (dir, prob) = bsdf.generate_random_sample_dir_and_calc_pdf(sampler);
             
-                            let sampled_ray = Ray::new(intersection.location(), dir);
+                            let sampled_ray = Ray::new(intersection.location, dir);
             
                             let prob = (bsdf_prob * prob)
                                 + (light_prob * lighting_region.global_surfaces.iter().map(|s| s.calculate_pdf_for_ray(&sampled_ray)).sum::<Scalar>());
@@ -377,7 +376,7 @@ impl ScatteringFunction for GlobalLighting
         50
     }
 
-    fn scatter_ray<'r>(_scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, sampler: &mut Sampler, _stats: &mut SceneSampleStats) -> ScatteringResult
+    fn scatter_ray(_scene: &Scene, intersection: &ShadingIntersection, material_interaction: MaterialInteraction, sampler: &mut Sampler, _stats: &mut SceneSampleStats) -> ScatteringResult
     {
         match material_interaction
         {
@@ -385,13 +384,13 @@ impl ScatteringFunction for GlobalLighting
             {
                 ScatteringResult::scatter(
                     diffuse_color,
-                    Box::new(Lambertian::new(intersection.normal)))
+                    Box::new(Lambertian::new(intersection)))
             },
             MaterialInteraction::Reflection{ attenuate_color, fuzz } =>
             {
                 ScatteringResult::scatter(
                     attenuate_color,
-                    Box::new(Phong::new(intersection.ray.dir.normalized(), intersection.normal, 0.2, 0.8, 5.0 / fuzz)))
+                    Box::new(Phong::new(intersection, 0.2, 0.8, 5.0 / fuzz)))
             },
             MaterialInteraction::Refraction{ ior } =>
             {
@@ -404,9 +403,7 @@ impl ScatteringFunction for GlobalLighting
                     ior
                 };
 
-                let unit_direction = intersection.ray.dir.normalized();
-
-                match ray_refract_or_reflect(unit_direction, intersection.normal, refraction_ratio)
+                match bsdf_refract_or_reflect(intersection.incoming, intersection.normal, refraction_ratio)
                 {
                     RefractResult::TotalInternalReflection{ reflect_dir } =>
                     {
@@ -457,7 +454,7 @@ impl ScatteringFunction for LocalLighting
         5
     }
 
-    fn scatter_ray<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, _sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult
+    fn scatter_ray(scene: &Scene, intersection: &ShadingIntersection, material_interaction: MaterialInteraction, _sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult
     {
         match material_interaction
         {
@@ -473,7 +470,7 @@ impl ScatteringFunction for LocalLighting
             },
             MaterialInteraction::Reflection{ attenuate_color, .. } =>
             {
-                ScatteringResult::trace(attenuate_color, ray_reflect(intersection.ray.dir, intersection.normal), 1.0)
+                ScatteringResult::trace(attenuate_color, bsdf_reflect(intersection.incoming, intersection.normal), 1.0)
             },
             MaterialInteraction::Refraction{ ior } =>
             {
@@ -486,9 +483,7 @@ impl ScatteringFunction for LocalLighting
                     ior
                 };
 
-                let unit_direction = intersection.ray.dir.normalized();
-
-                let new_dir = match ray_refract_or_reflect(unit_direction, intersection.normal, refraction_ratio)
+                let new_dir = match bsdf_refract_or_reflect(intersection.incoming, intersection.normal, refraction_ratio)
                 {
                     RefractResult::TotalInternalReflection{ reflect_dir } => reflect_dir,
                     RefractResult::ReflectOrRefract{ refract_dir, .. } => refract_dir,

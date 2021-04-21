@@ -24,6 +24,7 @@ impl Ray
                 ray: self,
                 face: Face::Front,
                 distance: distance,
+                location: None,
                 normal: normal,
             }
         }
@@ -34,6 +35,33 @@ impl Ray
                 ray: self,
                 face: Face::Back,
                 distance: distance,
+                location: None,
+                normal: -normal,
+            }
+        }
+    }
+
+    pub fn new_intersection_at(&self, distance: Scalar, location: Point3, normal: Dir3) -> SurfaceIntersection<'_>
+    {
+        if self.dir.dot(normal) <= 0.0
+        {
+            SurfaceIntersection
+            {
+                ray: self,
+                face: Face::Front,
+                distance: distance,
+                location: Some(location),
+                normal: normal,
+            }
+        }
+        else
+        {
+            SurfaceIntersection
+            {
+                ray: self,
+                face: Face::Back,
+                distance: distance,
+                location: Some(location),
                 normal: -normal,
             }
         }

@@ -1,5 +1,5 @@
 use crate::color::LinearRGB;
-use crate::intersection::{Face, SurfaceIntersection};
+use crate::intersection::{Face, ShadingIntersection};
 use crate::math::Scalar;
 use crate::texture::Texture;
 
@@ -47,7 +47,7 @@ impl Material
         Material::EmitFrontFaceOnly(texture)
     }
 
-    pub fn get_surface_interaction<'r>(&self, intersection: &SurfaceIntersection<'r>) -> MaterialInteraction
+    pub fn get_surface_interaction(&self, intersection: &ShadingIntersection) -> MaterialInteraction
     {
         match self
         {
@@ -55,14 +55,14 @@ impl Material
             {
                 MaterialInteraction::Diffuse
                 {
-                    diffuse_color: texture.get_color_at(intersection.location()),
+                    diffuse_color: texture.get_color_at(intersection.location),
                 }
             },
             Material::Metal(texture, fuzz) =>
             {
                 MaterialInteraction::Reflection
                 {
-                    attenuate_color: texture.get_color_at(intersection.location()),
+                    attenuate_color: texture.get_color_at(intersection.location),
                     fuzz: *fuzz,
                 }
             },
@@ -77,7 +77,7 @@ impl Material
             {
                 MaterialInteraction::Emit
                 {
-                    emitted_color: texture.get_color_at(intersection.location()),
+                    emitted_color: texture.get_color_at(intersection.location),
                 }
             },
             Material::EmitFrontFaceOnly(texture) =>
@@ -87,7 +87,7 @@ impl Material
                     Face::Front =>
                         MaterialInteraction::Emit
                         {
-                            emitted_color: texture.get_color_at(intersection.location()),
+                            emitted_color: texture.get_color_at(intersection.location),
                         },
                     Face::Back =>
                         MaterialInteraction::Diffuse

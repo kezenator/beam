@@ -1,12 +1,12 @@
-use crate::bsdf::{Bsdf, Lambertian, random_sample_dir_from_onb_phi_theta};
+use crate::bsdf::{Bsdf, random_sample_dir_from_onb_phi_theta, random_sample_dir_from_onb_xyz};
 use crate::color::LinearRGB;
-use crate::intersection::SurfaceIntersection;
+use crate::intersection::ShadingIntersection;
 use crate::material::MaterialInteraction;
 use crate::math::{Scalar, ScalarConsts};
 use crate::ray::Ray;
 use crate::sample::Sampler;
 use crate::scene::{Scene, SceneSampleStats};
-use crate::vec::{Dir3, ray_reflect};
+use crate::vec::{Dir3, bsdf_reflect};
 
 /// Implements the Phong BSDF for diffuse/specular surfaces.
 ///
@@ -23,23 +23,22 @@ pub struct Phong
 
 impl Phong
 {
-    pub fn new(input_dir: Dir3, normal: Dir3, kd: Scalar, ks: Scalar, n: Scalar) -> Self
+    pub fn new(intersection: &ShadingIntersection, kd: Scalar, ks: Scalar, n: Scalar) -> Self
     {
-        let specular_dir = ray_reflect(input_dir, normal);
+        let specular_dir = bsdf_reflect(intersection.incoming, intersection.normal);
+        let normal = intersection.normal;
 
         Phong { specular_dir, normal, kd, ks, n }
     }
 
-    pub fn local_shading<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, diffuse_color: LinearRGB, ka: Scalar, kd: Scalar, specular_color: LinearRGB, ks: Scalar, n: Scalar, stats: &mut SceneSampleStats) -> LinearRGB
+    pub fn local_shading(scene: &Scene, intersection: &ShadingIntersection, diffuse_color: LinearRGB, ka: Scalar, kd: Scalar, specular_color: LinearRGB, ks: Scalar, n: Scalar, stats: &mut SceneSampleStats) -> LinearRGB
     {
         let mut result = diffuse_color.multiplied_by_scalar(ka);
     
         // Shadow rays, for lights in the first lighting region that
         // covers the intersection location
     
-        let int_location = intersection.location();
-    
-        if let Some(lighting_region) = scene.get_lighting_region_at(int_location)
+        if let Some(lighting_region) = scene.get_lighting_region_at(intersection.location)
         {
             // Scale effects by the number of lights
     
@@ -49,7 +48,7 @@ impl Phong
     
             for local_light_loc in lighting_region.local_points.iter()
             {
-                let light_dir = local_light_loc - int_location;
+                let light_dir = local_light_loc - intersection.location;
     
                 if intersection.normal.dot(light_dir) > 0.0
                 {
@@ -60,9 +59,9 @@ impl Phong
     
                     stats.num_rays += 1;
     
-                    if let Some(shadow_int) = scene.trace_intersection(&Ray::new(int_location, light_dir))
+                    if let Some(shadow_int) = scene.trace_intersection(&Ray::new(intersection.location, light_dir))
                     {
-                        if let MaterialInteraction::Emit{ emitted_color } = shadow_int.material.get_surface_interaction(&shadow_int.surface)
+                        if let MaterialInteraction::Emit{ emitted_color } = shadow_int.material.get_surface_interaction(&shadow_int.surface.into())
                         {
                             // Our shadow ray has hit an emitting surface:
                             // 1) Clamp the emitted color - global illumination can need lights "brighter" than 1.0
@@ -77,9 +76,9 @@ impl Phong
     
                             if ks > 0.0
                             {
-                                let reflected = ray_reflect(light_dir, intersection.normal);
+                                let reflected = bsdf_reflect(light_dir, intersection.normal);
     
-                                let r_dot_v = reflected.dot(intersection.ray.dir.normalized());
+                                let r_dot_v = reflected.dot(intersection.incoming);
     
                                 if r_dot_v > 0.0
                                 {
@@ -104,7 +103,18 @@ impl Bsdf for Phong
         {
             // Sample using Diffuse Lambertian cosine distribution
 
-            Lambertian::new(self.normal).generate_random_sample_dir_and_calc_pdf(sampler).0
+            let r1 = sampler.uniform_scalar_unit();
+            let r2 = sampler.uniform_scalar_unit();
+    
+            let z = r1.sqrt();
+            let sin_theta = (1.0 - r1).sqrt();
+    
+            let phi = 2.0 * ScalarConsts::PI * r2;
+    
+            let x = phi.cos() * sin_theta;
+            let y = phi.sin() * sin_theta;
+    
+            random_sample_dir_from_onb_xyz(self.normal, x, y, z)
         }
         else
         {
