@@ -1,25 +1,25 @@
-use crate::color::RGBA;
+use crate::color::LinearRGB;
 use crate::vec::Point3;
 
 pub enum Texture
 {
-    Solid(RGBA),
-    Checkerboard(RGBA, RGBA),
+    Solid(LinearRGB),
+    Checkerboard(LinearRGB, LinearRGB),
 }
 
 impl Texture
 {
-    pub fn solid(color: RGBA) -> Texture
+    pub fn solid<C: Into<LinearRGB>>(color: C) -> Texture
     {
-        Texture::Solid(color)
+        Texture::Solid(color.into())
     }
 
-    pub fn checkerboard(c1: RGBA, c2: RGBA) -> Texture
+    pub fn checkerboard<C1: Into<LinearRGB>, C2: Into<LinearRGB>>(c1: C1, c2: C2) -> Texture
     {
-        Texture::Checkerboard(c1, c2)
+        Texture::Checkerboard(c1.into(), c2.into())
     }
 
-    pub fn get_color_at(&self, point: Point3) -> RGBA
+    pub fn get_color_at(&self, point: Point3) -> LinearRGB
     {
         match self
         {

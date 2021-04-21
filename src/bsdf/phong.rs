@@ -1,5 +1,5 @@
 use crate::bsdf::{Bsdf, Lambertian, random_sample_dir_from_onb_phi_theta};
-use crate::color::RGBA;
+use crate::color::LinearRGB;
 use crate::intersection::SurfaceIntersection;
 use crate::material::MaterialInteraction;
 use crate::math::{Scalar, ScalarConsts};
@@ -30,7 +30,7 @@ impl Phong
         Phong { specular_dir, normal, kd, ks, n }
     }
 
-    pub fn local_shading<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, diffuse_color: RGBA, ka: Scalar, kd: Scalar, specular_color: RGBA, ks: Scalar, n: Scalar, stats: &mut SceneSampleStats) -> RGBA
+    pub fn local_shading<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, diffuse_color: LinearRGB, ka: Scalar, kd: Scalar, specular_color: LinearRGB, ks: Scalar, n: Scalar, stats: &mut SceneSampleStats) -> LinearRGB
     {
         let mut result = diffuse_color.multiplied_by_scalar(ka);
     
@@ -68,7 +68,7 @@ impl Phong
                             // 1) Clamp the emitted color - global illumination can need lights "brighter" than 1.0
                             // 2) Add diffuse and specular components as required
     
-                            let emitted_color = emitted_color.clamped();
+                            let emitted_color = emitted_color.clamped(0.0, 1.0);
     
                             if kd > 0.0
                             {

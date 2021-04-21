@@ -72,7 +72,7 @@ fn main() -> Result<(), String>
             {
                 surface.fill_rect(
                     sdl2::rect::Rect::new(pixel.rect.x as i32, pixel.rect.y as i32, pixel.rect.width, pixel.rect.height),
-                    sdl2::pixels::Color::from(pixel.color.to_u8_tuple()))?;
+                    sdl2::pixels::Color::from(pixel.color.to_srgb().to_u8_rgba_tuple()))?;
             }
 
             canvas.window_mut().set_title(&format!("Beam - {}", update.progress)).expect("Could not set window title");

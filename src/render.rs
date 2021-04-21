@@ -50,7 +50,7 @@ pub struct PixelRect
 pub struct PixelUpdate
 {
     pub rect: PixelRect,
-    pub color: color::RGBA,
+    pub color: color::LinearRGB,
 }
 
 pub struct RenderUpdate
@@ -106,7 +106,7 @@ struct RenderState
     desc: SceneDescription,
     stats: SceneSampleStats,
     total_duration: Duration,
-    pixels: Vec<color::RGBA>,
+    pixels: Vec<color::LinearRGB>,
 }
 
 impl RenderState
@@ -121,7 +121,7 @@ impl RenderState
             desc: desc,
             stats: SceneSampleStats::new(),
             total_duration: Duration::default(),
-            pixels: vec![color::RGBA::new(0.0, 0.0, 0.0, 1.0); num_pixels],
+            pixels: vec![color::LinearRGB::black(); num_pixels],
         }
     }
 }
@@ -309,7 +309,7 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
 
                 state.pixels[index] = sum.clone();
 
-                pixel.color = sum.divided_by_scalar(total_samples_per_pixel as Scalar).gamma_corrected_2();
+                pixel.color = sum.divided_by_scalar(total_samples_per_pixel as Scalar);
             }
 
             collected_chunks += 1;
@@ -415,7 +415,7 @@ fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_sampl
 
 fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sampler, new_samples_per_pixel: usize, stats: &mut SceneSampleStats, update: PixelRect) -> PixelUpdate
 {
-    let mut color = color::RGBA::new(0.0, 0.0, 0.0, 1.0);
+    let mut color = color::LinearRGB::black();
 
     match options.illumination_mode
     {
@@ -433,7 +433,7 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
                 let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (options.width as Scalar);
                 let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (options.height as Scalar);
 
-                color = color + scene.path_trace_global_lighting(u, v, sampler, stats);
+                color = color + scene.path_trace_global_lighting(u, v, sampler, stats).clamped(0.0, 1.0);
             }
         },
     };

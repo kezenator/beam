@@ -1,5 +1,5 @@
 use crate::camera::Camera;
-use crate::color::RGBA;
+use crate::color::SRGB;
 use crate::desc::{SceneDescription, StandardScene};
 use crate::geom::Sphere;
 use crate::material::Material;
@@ -33,10 +33,10 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
         vec![
             Object::new(
                 Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0),
-                Material::diffuse(Texture::solid(RGBA::new(0.5, 0.5, 0.5, 1.0)))),
+                Material::diffuse(Texture::solid(SRGB::new(0.5, 0.5, 0.5)))),
 
             Object::new(
                 Sphere::new(Point3::new(0.0, 0.0, 0.0), 10.0),
-                Material::emit(Texture::solid(RGBA::new(1.0, 1.0, 1.0, 1.0)))),
+                Material::emit(Texture::solid(SRGB::new(1.0, 1.0, 1.0)))),
         ])
 }

@@ -1,14 +1,14 @@
-use crate::color::RGBA;
+use crate::color::LinearRGB;
 use crate::intersection::{Face, SurfaceIntersection};
 use crate::math::Scalar;
 use crate::texture::Texture;
 
 pub enum MaterialInteraction
 {
-    Diffuse{ diffuse_color: RGBA},
-    Reflection{ attenuate_color: RGBA, fuzz: Scalar },
+    Diffuse{ diffuse_color: LinearRGB},
+    Reflection{ attenuate_color: LinearRGB, fuzz: Scalar },
     Refraction{ ior: Scalar },
-    Emit{ emitted_color: RGBA},
+    Emit{ emitted_color: LinearRGB},
 }
 
 pub enum Material
@@ -92,7 +92,7 @@ impl Material
                     Face::Back =>
                         MaterialInteraction::Diffuse
                         {
-                            diffuse_color: RGBA::new(0.0, 0.0, 0.0, 1.0),
+                            diffuse_color: LinearRGB::new(0.0, 0.0, 0.0),
                         },
                 }
             },

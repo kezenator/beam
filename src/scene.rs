@@ -1,6 +1,6 @@
 use crate::bsdf::{Bsdf, Lambertian, Phong};
 use crate::camera::Camera;
-use crate::color::RGBA;
+use crate::color::LinearRGB;
 use crate::intersection::{Face, ObjectIntersection, SurfaceIntersection};
 use crate::lighting::LightingRegion;
 use crate::material::MaterialInteraction;
@@ -21,24 +21,24 @@ pub enum SamplingMode
 
 pub enum ScatteringResult
 {
-    Emit{ emitted_color: RGBA, probability: Scalar },
-    Trace{ attenuation_color: RGBA, next_dir: Dir3, probability: Scalar },
-    Scatter{ attenuation_color: RGBA, bsdf: Box<dyn Bsdf> },
+    Emit{ emitted_color: LinearRGB, probability: Scalar },
+    Trace{ attenuation_color: LinearRGB, next_dir: Dir3, probability: Scalar },
+    Scatter{ attenuation_color: LinearRGB, bsdf: Box<dyn Bsdf> },
 }
 
 impl ScatteringResult
 {
-    pub fn emit(emitted_color: RGBA, probability: Scalar) -> Self
+    pub fn emit(emitted_color: LinearRGB, probability: Scalar) -> Self
     {
         ScatteringResult::Emit{ emitted_color, probability }
     }
 
-    pub fn trace(attenuation_color: RGBA, next_dir: Dir3, probability: Scalar) -> Self
+    pub fn trace(attenuation_color: LinearRGB, next_dir: Dir3, probability: Scalar) -> Self
     {
         ScatteringResult::Trace{ attenuation_color, next_dir, probability }
     }
 
-    pub fn scatter(attenuation_color: RGBA, bsdf: Box<dyn Bsdf>) -> Self
+    pub fn scatter(attenuation_color: LinearRGB, bsdf: Box<dyn Bsdf>) -> Self
     {
         ScatteringResult::Scatter{ attenuation_color, bsdf }
     }
@@ -48,7 +48,7 @@ pub trait ScatteringFunction
 {
     fn max_rays() -> usize;
     fn scatter_ray<'r>(scene: &Scene, intersection: &'r SurfaceIntersection<'r>, material_interaction: MaterialInteraction, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> ScatteringResult;
-    fn termination_contdition(attenuation: RGBA) -> RGBA;
+    fn termination_contdition(attenuation: LinearRGB) -> LinearRGB;
 }
 
 #[derive(Clone, Copy)]
@@ -121,26 +121,26 @@ impl Scene
         Scene { sampling_mode, camera, lighting_regions, objects }
     }
 
-    pub fn path_trace_global_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
+    pub fn path_trace_global_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> LinearRGB
     {
         let ray = self.camera.get_ray(u, v);
 
         self.path_trace::<GlobalLighting>(ray, sampler, stats)
     }
 
-    pub fn path_trace_local_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
+    pub fn path_trace_local_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> LinearRGB
     {
         let ray = self.camera.get_ray(u, v);
 
         self.path_trace::<LocalLighting>(ray, sampler, stats)
     }
 
-    pub fn path_trace<S: ScatteringFunction>(&self, ray: Ray, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> RGBA
+    pub fn path_trace<S: ScatteringFunction>(&self, ray: Ray, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> LinearRGB
     {
         stats.num_samples += 1;
 
         let mut cur_ray = ray;
-        let mut cur_attenuation = RGBA::new(1.0, 1.0, 1.0, 1.0);
+        let mut cur_attenuation = LinearRGB::white();
         let mut cur_probability = 1.0;
 
         for ray_num in 0..S::max_rays()
@@ -190,7 +190,7 @@ impl Scene
                     // This ray doens't hit any objects -
                     // there's nothing to see
 
-                    return RGBA::new(0.0, 0.0, 0.0, 1.0);
+                    return LinearRGB::black();
                 },
             }
 
@@ -209,7 +209,7 @@ impl Scene
 
                 stats.stopped_due_to_min_atten += 1;
 
-                return RGBA::new(0.0, 0.0, 0.0, 1.0);
+                return LinearRGB::black();
             }
 
             if cur_probability < 1.0e-6
@@ -221,7 +221,7 @@ impl Scene
 
                 stats.stopped_due_to_min_prob += 1;
 
-                return RGBA::new(0.0, 0.0, 0.0, 1.0);
+                return LinearRGB::black();
             }
         }
 
@@ -410,7 +410,7 @@ impl ScatteringFunction for GlobalLighting
                 {
                     RefractResult::TotalInternalReflection{ reflect_dir } =>
                     {
-                        ScatteringResult::trace(RGBA::new(1.0, 1.0, 1.0, 1.0), reflect_dir, 1.0)
+                        ScatteringResult::trace(LinearRGB::white(), reflect_dir, 1.0)
                     },
                     RefractResult::ReflectOrRefract{ refract_dir, reflect_dir, reflect_probability } =>
                     {
@@ -423,7 +423,7 @@ impl ScatteringFunction for GlobalLighting
                             (refract_dir, 1.0 - reflect_probability)
                         };
 
-                        ScatteringResult::trace(RGBA::new(probability, probability, probability, 1.0), dir, probability)
+                        ScatteringResult::trace(LinearRGB::grey(probability), dir, probability)
                     },
                 }
             },
@@ -437,12 +437,12 @@ impl ScatteringFunction for GlobalLighting
         }
     }
 
-    fn termination_contdition(_attenuation: RGBA) -> RGBA
+    fn termination_contdition(_attenuation: LinearRGB) -> LinearRGB
     {
         // This ray has not been able to find an emitting surface -
         // we can't return any light to the camera
 
-        RGBA::new(0.0, 0.0, 0.0, 1.0)
+        LinearRGB::black()
     }
 }
 
@@ -494,7 +494,7 @@ impl ScatteringFunction for LocalLighting
                     RefractResult::ReflectOrRefract{ refract_dir, .. } => refract_dir,
                 };
 
-                ScatteringResult::trace(RGBA::new(1.0, 1.0, 1.0, 1.0), new_dir, 1.0)
+                ScatteringResult::trace(LinearRGB::white(), new_dir, 1.0)
             },
             MaterialInteraction::Emit{ emitted_color } =>
             {
@@ -503,7 +503,7 @@ impl ScatteringFunction for LocalLighting
         }
     }
 
-    fn termination_contdition(attenuation: RGBA) -> RGBA
+    fn termination_contdition(attenuation: LinearRGB) -> LinearRGB
     {
         // For local lighting, best results are obtained
         // through multiple reflections if we assume

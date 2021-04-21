@@ -1,5 +1,5 @@
 use crate::camera::Camera;
-use crate::color::RGBA;
+use crate::color::SRGB;
 use crate::desc::{SceneDescription, StandardScene};
 use crate::geom::{Aabb, Plane, Sphere, Rectangle, Blob, BlobPart, BoundedSurface, csg};
 use crate::lighting::LightingRegion;
@@ -26,14 +26,14 @@ pub fn generate_description() -> SceneDescription
 
 pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 {
-    let sphere = |centre: Point3, radius: Scalar, color: RGBA| -> Object
+    let sphere = |centre: Point3, radius: Scalar, color: SRGB| -> Object
     {
         Object::new(
             Sphere::new(centre, radius),
             Material::diffuse(Texture::solid(color)))
     };
 
-    let metal_sphere = |centre: Point3, radius: Scalar, color: RGBA| -> Object
+    let metal_sphere = |centre: Point3, radius: Scalar, color: SRGB| -> Object
     {
         Object::new(
             Sphere::new(centre, radius),
@@ -51,38 +51,38 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
     {
         Object::new(
             Sphere::new(centre, radius),
-            Material::emit(Texture::solid(RGBA::new(brightness, brightness, brightness, 1.0))))
+            Material::emit(Texture::solid(SRGB::new(brightness, brightness, brightness))))
     };
 
     let rectangle = |point: Point3, u: Point3, v: Point3| -> Object
     {
         Object::new(
             Rectangle::new(point, u, v),
-            Material::diffuse(Texture::solid(RGBA::new(0.7, 0.7, 0.7, 1.0))))
+            Material::diffuse(Texture::solid(SRGB::new(0.7, 0.7, 0.7))))
     };
 
-    let aabb = |min: Point3, max: Point3, color: RGBA| -> Object
+    let aabb = |min: Point3, max: Point3, color: SRGB| -> Object
     {
         Object::new(
             Aabb::new(min, max),
             Material::diffuse(Texture::solid(color)))
     };
 
-    let plane = |point: Point3, normal: Dir3, color: RGBA| -> Object
+    let plane = |point: Point3, normal: Dir3, color: SRGB| -> Object
     {
         Object::new(
             Plane::new(point, normal),
-            Material::metal(Texture::checkerboard(color, RGBA::new(1.0, 1.0, 1.0, 1.0)), 0.1))
+            Material::metal(Texture::checkerboard(color, SRGB::new(1.0, 1.0, 1.0)), 0.1))
     };
 
-    let wall_plane = |point: Point3, normal: Dir3, color: RGBA| -> Object
+    let wall_plane = |point: Point3, normal: Dir3, color: SRGB| -> Object
     {
         Object::new(
             Plane::new(point, normal),
             Material::diffuse(Texture::solid(color)))
     };
 
-    let cloud = |center: Point3, radius: Scalar, blob_rad: Scalar, num: usize, color: RGBA| -> Object
+    let cloud = |center: Point3, radius: Scalar, blob_rad: Scalar, num: usize, color: SRGB| -> Object
     {
         let mut sampler = Sampler::new_reproducable(0xBAD5EED5DEADBEEFu64);
         let mut merge = csg::Merge::new();
@@ -101,7 +101,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
             Material::diffuse(Texture::solid(color)))
     };
 
-    let blob = |center: Point3, color: RGBA| -> Object
+    let blob = |center: Point3, color: SRGB| -> Object
     {
         let spacing = 1.5;
 
@@ -116,7 +116,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
             Material::diffuse(Texture::solid(color)))
     };
 
-    let cut_box = |center: Point3, radius: Scalar, color: RGBA| -> Object
+    let cut_box = |center: Point3, radius: Scalar, color: SRGB| -> Object
     {
         let min = Point3::new(center.x - radius, center.y - radius, center.z - radius);
         let max = Point3::new(center.x + radius, center.y + radius, center.z + radius);
@@ -151,49 +151,49 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
         // Objects
         vec![
             // White sphere at the origin
-            sphere(Point3::new(0.0, 0.0, 0.0), 1.0, RGBA::new(0.8, 0.8, 0.8, 1.0)),
+            sphere(Point3::new(0.0, 0.0, 0.0), 1.0, SRGB::new(0.8, 0.8, 0.8)),
 
             // Red, green and blue ones around it
-            sphere(Point3::new(0.0, 2.0, 0.0), 1.0, RGBA::new(0.8, 0.0, 0.8, 1.0)),
-            sphere(Point3::new(2.0, 0.0, 0.0), 1.0, RGBA::new(0.0, 0.8, 0.0, 1.0)),
-            sphere(Point3::new(-2.0, 0.0, -0.5), 1.0, RGBA::new(0.0, 0.0, 0.8, 1.0)),
+            sphere(Point3::new(0.0, 2.0, 0.0), 1.0, SRGB::new(0.8, 0.0, 0.8)),
+            sphere(Point3::new(2.0, 0.0, 0.0), 1.0, SRGB::new(0.0, 0.8, 0.0)),
+            sphere(Point3::new(-2.0, 0.0, -0.5), 1.0, SRGB::new(0.0, 0.0, 0.8)),
 
             // Grey sphere below
-            sphere(Point3::new(0.0, -2.0, 0.0), 1.0, RGBA::new(0.5, 0.5, 0.5, 1.0)),
+            sphere(Point3::new(0.0, -2.0, 0.0), 1.0, SRGB::new(0.5, 0.5, 0.5)),
 
             // Some more interesting stuff
-            cloud(Point3::new(2.5, 2.5, 2.0), 1.2, 0.2, 400, RGBA::new(0.8, 0.6, 0.3, 1.0)),
-            blob(Point3::new(-2.5, 2.5, 1.0), RGBA::new(0.8, 0.6, 0.3, 1.0)),
+            cloud(Point3::new(2.5, 2.5, 2.0), 1.2, 0.2, 400, SRGB::new(0.8, 0.6, 0.3)),
+            blob(Point3::new(-2.5, 2.5, 1.0), SRGB::new(0.8, 0.6, 0.3)),
 
             // Rectangular "walls"
             rectangle(Point3::new(4.0, -3.0, -1.5), Point3::new(0.0, 0.0, 4.0), Point3::new(0.0, 4.0, 0.0)),
             rectangle(Point3::new(4.0, -3.0, -1.5), Point3::new(-4.0, 0.0, 0.0), Point3::new(0.0, 4.0, 0.0)),
 
             // Real walls to enclose the scene
-            wall_plane(Point3::new(-50.0, 0.0, 0.0), Dir3::new(1.0, 0.0, 0.0), RGBA::new(1.0, 1.0, 1.0, 1.0)),
-            wall_plane(Point3::new(50.0, 0.0, 0.0), Dir3::new(-1.0, 0.0, 0.0), RGBA::new(1.0, 1.0, 1.0, 1.0)),
-            wall_plane(Point3::new(0.0, 0.0, 50.0), Dir3::new(0.0, 0.0, -1.0), RGBA::new(1.0, 1.0, 1.0, 1.0)),
-            wall_plane(Point3::new(0.0, 0.0, -50.0), Dir3::new(0.0, 0.0, 1.0), RGBA::new(1.0, 1.0, 1.0, 1.0)),
+            wall_plane(Point3::new(-50.0, 0.0, 0.0), Dir3::new(1.0, 0.0, 0.0), SRGB::new(1.0, 1.0, 1.0)),
+            wall_plane(Point3::new(50.0, 0.0, 0.0), Dir3::new(-1.0, 0.0, 0.0), SRGB::new(1.0, 1.0, 1.0)),
+            wall_plane(Point3::new(0.0, 0.0, 50.0), Dir3::new(0.0, 0.0, -1.0), SRGB::new(1.0, 1.0, 1.0)),
+            wall_plane(Point3::new(0.0, 0.0, -50.0), Dir3::new(0.0, 0.0, 1.0), SRGB::new(1.0, 1.0, 1.0)),
 
             // Metal spheres
-            metal_sphere(Point3::new(2.50, -2.0, 1.0), 1.25, RGBA::new(0.8, 0.5, 0.8, 1.0)),
+            metal_sphere(Point3::new(2.50, -2.0, 1.0), 1.25, SRGB::new(0.8, 0.5, 0.8)),
 
             // Glass spheres and a floor for a caustic
             glass_sphere(Point3::new(-1.5, -2.0, 1.5), 1.25),
             glass_sphere(Point3::new(-4.0, -2.2, 0.5), 0.75),
-            aabb(Point3::new(-6.0, -3.4, -3.0), Point3::new(-2.0, -3.2, 1.0), RGBA::new(0.7, 0.7, 0.7, 1.0)),
+            aabb(Point3::new(-6.0, -3.4, -3.0), Point3::new(-2.0, -3.2, 1.0), SRGB::new(0.7, 0.7, 0.7)),
 
             // A cut box on the caustic floor
-            cut_box(Point3::new(-4.0, -2.2, -1.5), 0.75, RGBA::new(0.9, 0.5, 0.2, 1.0)),
+            cut_box(Point3::new(-4.0, -2.2, -1.5), 0.75, SRGB::new(0.9, 0.5, 0.2)),
 
             // Lights
             light_sphere(Point3::new(-2.0, 1.0, 1.0), 0.2, 4.0),
             light_sphere(Point3::new(0.0, 500.0, 0.0), 450.0, 0.1),
 
             // Ground
-            plane(Point3::new(0.0, -3.51, 0.0), Dir3::new(0.0, 1.0, 0.0), RGBA::new(0.2, 0.2, 0.2, 1.0)),
+            plane(Point3::new(0.0, -3.51, 0.0), Dir3::new(0.0, 1.0, 0.0), SRGB::new(0.2, 0.2, 0.2)),
 
             // Wall behind
-            sphere(Point3::new(0.0, 0.0, -13.0), 10.0, RGBA::new(0.5, 0.584, 0.929, 1.0)),
+            sphere(Point3::new(0.0, 0.0, -13.0), 10.0, SRGB::new(0.5, 0.584, 0.929)),
         ])
 }
