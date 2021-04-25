@@ -10,6 +10,16 @@ pub struct LightingRegion
 
 impl LightingRegion
 {
+    pub fn new<V: Volume + 'static>(covered_volume: V) -> Self
+    {
+        LightingRegion
+        {
+            covered_volume: Box::new(covered_volume),
+            global_surfaces: Vec::new(),
+            local_points: Vec::new(),
+        }
+    }
+
     pub fn new_1<V, S1>(covered_volume: V, global_surface_1: S1, local_points: Vec<Point3>) -> Self
         where V: Volume + 'static,
             S1: SampleableSurface + 'static,

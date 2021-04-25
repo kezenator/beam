@@ -121,21 +121,21 @@ impl Scene
         Scene { sampling_mode, camera, lighting_regions, objects }
     }
 
-    pub fn path_trace_global_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> LinearRGB
+    pub fn path_trace_global_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> (LinearRGB, Scalar)
     {
         let ray = self.camera.get_ray(u, v);
 
         self.path_trace::<GlobalLighting>(ray, sampler, stats)
     }
 
-    pub fn path_trace_local_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> LinearRGB
+    pub fn path_trace_local_lighting(&self, u: Scalar, v: Scalar, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> (LinearRGB, Scalar)
     {
         let ray = self.camera.get_ray(u, v);
 
         self.path_trace::<LocalLighting>(ray, sampler, stats)
     }
 
-    pub fn path_trace<S: ScatteringFunction>(&self, ray: Ray, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> LinearRGB
+    pub fn path_trace<S: ScatteringFunction>(&self, ray: Ray, sampler: &mut Sampler, stats: &mut SceneSampleStats) -> (LinearRGB, Scalar)
     {
         stats.num_samples += 1;
 
@@ -182,7 +182,7 @@ impl Scene
 
                             let final_probability = cur_probability * probability;
 
-                            return emitted_color.combined_with(&cur_attenuation).divided_by_scalar(final_probability);
+                            return (emitted_color.combined_with(&cur_attenuation).divided_by_scalar(final_probability), final_probability);
                         },
                     }
                 },
@@ -191,7 +191,7 @@ impl Scene
                     // This ray doens't hit any objects -
                     // there's nothing to see
 
-                    return LinearRGB::black();
+                    return (LinearRGB::black(), cur_probability);
                 },
             }
 
@@ -210,7 +210,7 @@ impl Scene
 
                 stats.stopped_due_to_min_atten += 1;
 
-                return LinearRGB::black();
+                return (LinearRGB::black(), cur_probability);
             }
 
             if cur_probability < 1.0e-6
@@ -222,7 +222,7 @@ impl Scene
 
                 stats.stopped_due_to_min_prob += 1;
 
-                return LinearRGB::black();
+                return (LinearRGB::black(), cur_probability);
             }
         }
 
@@ -232,7 +232,7 @@ impl Scene
 
         stats.stopped_due_to_max_rays += 1;
 
-        S::termination_contdition(cur_attenuation).divided_by_scalar(cur_probability)
+        (S::termination_contdition(cur_attenuation).divided_by_scalar(cur_probability), cur_probability)
     }
 
     pub fn trace_intersection<'r, 'm>(&'m self, ray: &'r Ray) -> Option<ObjectIntersection<'r, 'm>>

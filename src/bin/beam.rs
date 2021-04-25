@@ -1,13 +1,17 @@
+use std::io::prelude::*;
+
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Mod};
 use std::time::Duration;
 
+use beam::color::LinearRGB;
 use beam::desc::{SceneDescription, StandardScene};
 use beam::math::Scalar;
 use beam::render::{Renderer, RenderOptions, RenderIlluminationMode};
-use beam::scene::SamplingMode;
-use beam::vec::{Mat4, Point3, Vec3, Vec4};
+use beam::sample::Sampler;
+use beam::scene::{SamplingMode, SceneSampleStats};
+use beam::vec::{Mat4, Vec3, Vec4};
 
 fn main() -> Result<(), String>
 {
@@ -61,6 +65,10 @@ fn main() -> Result<(), String>
                     {
                         renderer = app_state.new_renderer();
                     }
+                },
+                Event::MouseButtonDown { x, y, .. } =>
+                {
+                    app_state.samples_to_csv(x, y);
                 },
                 _ => {},
             }
@@ -133,6 +141,11 @@ impl AppState
                 self.desc = SceneDescription::new(StandardScene::Furnace);
                 true
             },
+            Keycode::Num4 =>
+            {
+                self.desc = SceneDescription::new(StandardScene::Veach);
+                true
+            },
             Keycode::F1 =>
             {
                 self.options.illumination_mode = RenderIlluminationMode::Global;
@@ -162,6 +175,14 @@ impl AppState
                 self.options.illumination_mode = RenderIlluminationMode::Local;
                 true
             }
+            Keycode::C =>
+            {
+                println!("Camera Location: {:?}", self.desc.camera_location);
+                println!("Camera Look-at:  {:?}", self.desc.camera_look_at);
+                println!("Camera Up:       {:?}", self.desc.camera_up);
+                println!("Camera FOV:      {:?}", self.desc.camera_fov);
+                false
+            },
             Keycode::L =>
             {
                 self.options.illumination_mode = match self.options.illumination_mode
@@ -180,7 +201,7 @@ impl AppState
                 }
                 else
                 {
-                    self.move_around(Point3::new(-1.0, 0.0, 0.0));
+                    self.move_around(-1.0, 0.0);
                 }
                 true
             },
@@ -192,7 +213,7 @@ impl AppState
                 }
                 else
                 {
-                    self.move_around(Point3::new(1.0, 0.0, 0.0));
+                    self.move_around(1.0, 0.0);
                 }
                 true
             },
@@ -204,7 +225,7 @@ impl AppState
                 }
                 else
                 {
-                    self.move_around(Point3::new(0.0, 0.0, -1.0));
+                    self.move_around(0.0, -1.0);
                 }
                 true
             },
@@ -216,7 +237,7 @@ impl AppState
                 }
                 else
                 {
-                    self.move_around(Point3::new(0.0, 0.0, 1.0));
+                    self.move_around(0.0, 1.0);
                 }
                 true
             },
@@ -244,14 +265,21 @@ impl AppState
         handled
     }
 
-    fn move_around(&mut self, dir: Point3)
+    fn move_around(&mut self, factor_left_right: Scalar, factor_forward_back: Scalar)
     {
         let look = self.desc.camera_look_at - self.desc.camera_location;
         let right = look.cross(self.desc.camera_up).normalized();
         let back = right.cross(self.desc.camera_up).normalized();
+        let up = self.desc.camera_up.normalized();
         
-        let dir = (dir.x * right) + (dir.z * back);
-        let dir = Vec3::new(dir.x, 0.0, dir.z);
+        // Don't move in the up/down direction
+        let right = right - (up.dot(right) * up);
+        let back = back - (up.dot(right) * up);
+
+        // Work out how far to move
+        let dist_factor = 0.05 * look.magnitude();
+
+        let dir = dist_factor * (factor_left_right * right + factor_forward_back * back);
 
         self.desc.camera_location += dir;
         self.desc.camera_look_at += dir;
@@ -261,7 +289,7 @@ impl AppState
     {
         let dir = self.desc.camera_location - self.desc.camera_look_at;
 
-        let rot = Mat4::rotation_y(degrees.to_radians());
+        let rot = Mat4::rotation_3d(degrees.to_radians(), self.desc.camera_up);
 
         let new_dir: Vec3 = (rot * Vec4::from_direction(dir)).into();
 
@@ -279,5 +307,36 @@ impl AppState
         let new_dir: Vec3 = (rot * Vec4::from_direction(dir)).into();
 
         self.desc.camera_location = new_dir + self.desc.camera_look_at;
+    }
+
+    fn samples_to_csv(&self, x: i32, y: i32)
+    {
+        const NUM_SAMPLES: usize = 32;
+
+        let scene = self.desc.build_scene(&self.options);
+        let mut sampler = Sampler::new();
+        let mut stats = SceneSampleStats::new();
+
+        let mut color = LinearRGB::black();
+        let mut csv = "R,G,B,Probability\n".to_owned();
+        
+        for _ in 0..NUM_SAMPLES
+        {
+            let u = ((x as Scalar) + sampler.uniform_scalar_unit()) / (self.options.width as Scalar);
+            let v = ((y as Scalar) + sampler.uniform_scalar_unit()) / (self.options.height as Scalar);
+
+            let (sample, probability) = scene.path_trace_global_lighting(u, v, &mut sampler, &mut stats);
+
+            color = color + sample;
+
+            let line: String = format!("{},{},{},{}\n", sample.r, sample.g, sample.b, probability);
+            csv += &line;
+        }
+
+        let mut file = std::fs::File::create("samples.csv").expect("Could not write CSV file");
+        file.write_all(csv.as_bytes()).expect("Could not write CSV file");
+
+        println!("Wrote \"samples.csv\"");
+        println!("Result = {:?}", color.divided_by_scalar(NUM_SAMPLES as Scalar));
     }
 }

@@ -424,7 +424,7 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
             let u = (update.x as Scalar) / (options.width as Scalar);
             let v = (update.y as Scalar) / (options.height as Scalar);
 
-            color = scene.path_trace_local_lighting(u, v, sampler, stats);
+            color = scene.path_trace_local_lighting(u, v, sampler, stats).0;
         },
         RenderIlluminationMode::Global =>
         {
@@ -433,7 +433,7 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
                 let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (options.width as Scalar);
                 let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (options.height as Scalar);
 
-                color = color + scene.path_trace_global_lighting(u, v, sampler, stats).clamped(0.0, 1.0);
+                color = color + scene.path_trace_global_lighting(u, v, sampler, stats).0;
             }
         },
     };
