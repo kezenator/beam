@@ -2,6 +2,7 @@ pub mod bsdf;
 pub mod camera;
 pub mod color;
 pub mod desc;
+pub mod exec;
 pub mod geom;
 pub mod intersection;
 pub mod lighting;
