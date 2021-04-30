@@ -18,7 +18,7 @@ pub use blob::{Blob, BlobPart};
 pub use bounds::BoundedSurface;
 pub use disc::Disc;
 pub use plane::Plane;
-pub use rectangle::Rectangle;
+pub use rectangle::{OneWayRectangle, Rectangle};
 pub use sphere::Sphere;
 
 pub trait Surface
