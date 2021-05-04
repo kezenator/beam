@@ -1,7 +1,7 @@
 use crate::camera::Camera;
 use crate::color::{LinearRGB, SRGB};
 use crate::desc::{CameraDescription, SceneDescription, SceneSelection, StandardScene};
-use crate::geom::{Aabb, Sphere, Rectangle};
+use crate::geom::{Aabb, Sphere, OneWayRectangle, Rectangle};
 use crate::lighting::LightingRegion;
 use crate::material::Material;
 use crate::math::Scalar;
@@ -31,7 +31,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
     let wall_rect = |point: Point3, u: Point3, v: Point3, color: SRGB| -> Object
     {
         Object::new(
-            Rectangle::new(point, u, v),
+            OneWayRectangle::new(point, u, v),
             Material::diffuse(Texture::solid(color)))
     };
 
@@ -84,12 +84,12 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
         ],
         // Objects
         vec![
-            // Walls - left(red), right(green), top, back floor
+            // Walls - left(red), right(green), top, back, floor
             wall_rect(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 555.0, 0.0), Point3::new(0.0, 0.0, 555.0), SRGB::new(1.0, 0.0, 0.0)),
-            wall_rect(Point3::new(555.0, 0.0, 0.0), Point3::new(0.0, 555.0, 0.0), Point3::new(0.0, 0.0, 555.0), SRGB::new(0.0, 1.0, 0.0)),
+            wall_rect(Point3::new(555.0, 555.0, 0.0), Point3::new(0.0, -555.0, 0.0), Point3::new(0.0, 0.0, 555.0), SRGB::new(0.0, 1.0, 0.0)),
             wall_rect(Point3::new(0.0, 555.0, 0.0), Point3::new(555.0, 0.0, 0.0), Point3::new(0.0, 0.0, 555.0), SRGB::new(1.0, 1.0, 1.0)),
             wall_rect(Point3::new(0.0, 0.0, 0.0), Point3::new(555.0, 0.0, 0.0), Point3::new(0.0, 555.0, 0.0), SRGB::new(1.0, 1.0, 1.0)),
-            wall_rect(Point3::new(0.0, 0.0, 0.0), Point3::new(555.0, 0.0, 0.0), Point3::new(0.0, 0.0, 555.0), SRGB::new(1.0, 1.0, 1.0)),
+            wall_rect(Point3::new(555.0, 0.0, 0.0), Point3::new(-555.0, 0.0, 0.0), Point3::new(0.0, 0.0, 555.0), SRGB::new(1.0, 1.0, 1.0)),
 
             // Light
             light_rect(Point3::new(213.0, 554.0, 227.0), Point3::new(130.0, 0.0, 0.0), Point3::new(0.0, 0.0, 105.0)),

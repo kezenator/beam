@@ -1,5 +1,5 @@
 use crate::geom::{SampleableSurface, Surface};
-use crate::intersection::SurfaceIntersection;
+use crate::intersection::{Face, SurfaceIntersection};
 use crate::math::{EPSILON, Scalar};
 use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
@@ -117,5 +117,28 @@ impl SampleableSurface for Rectangle
                 0.0
             },
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct OneWayRectangle
+{
+    rect: Rectangle,
+}
+
+impl OneWayRectangle
+{
+    pub fn new(point: Point3, u: Dir3, v: Dir3) -> Self
+    {
+        OneWayRectangle { rect: Rectangle::new(point, u, v) }
+    }
+}
+
+impl Surface for OneWayRectangle
+{
+    fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
+    {
+        self.rect.closest_intersection_in_range(ray, range)
+            .filter(|i| i.face == Face::Front)
     }
 }
