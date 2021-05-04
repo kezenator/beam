@@ -5,6 +5,7 @@ use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::vec::{Dir3, Point3};
 
+#[derive(Clone)]
 pub struct Disc
 {
     point: Point3,

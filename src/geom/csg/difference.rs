@@ -3,13 +3,14 @@ use crate::math::EPSILON;
 use crate::ray::{Ray, RayRange};
 use crate::vec::Point3;
 
-pub struct Difference<A, B>
+#[derive(Clone)]
+pub struct Difference<A: Clone, B: Clone>
 {
     a: A,
     b: B,
 }
 
-impl<A: Volume, B: Volume> Difference<A, B>
+impl<A: Volume + Clone + 'static, B: Volume + Clone + 'static> Difference<A, B>
 {
     pub fn new(a: A, b: B) -> Self
     {
@@ -17,7 +18,7 @@ impl<A: Volume, B: Volume> Difference<A, B>
     }
 }
 
-impl<A: Volume, B: Volume> Surface for Difference<A, B>
+impl<A: Volume + Clone + 'static, B: Volume + Clone + 'static> Surface for Difference<A, B>
 {
     fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {
@@ -95,7 +96,7 @@ impl<A: Volume, B: Volume> Surface for Difference<A, B>
     }
 }
 
-impl<A: Volume, B: Volume> Volume for Difference<A, B>
+impl<A: Volume + Clone + 'static, B: Volume + Clone + 'static> Volume for Difference<A, B>
 {
     fn is_point_inside(&self, point: Point3) -> bool
     {

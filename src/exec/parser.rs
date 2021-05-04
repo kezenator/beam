@@ -1,6 +1,7 @@
+use crate::math::Scalar;
 use crate::exec::{ActualArgumentExpressions, ExecResult, ExecError, Expression, Value};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SourceLocation
 {
     offset: usize,
@@ -10,7 +11,7 @@ impl SourceLocation
 {
     pub fn inbuilt() -> Self
     {
-        SourceLocation{ offset: 0 }
+        SourceLocation{ offset: usize::MAX }
     }
 
     fn from_offset(offset: usize) -> Self
@@ -22,7 +23,7 @@ impl SourceLocation
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum TokenKind
 {
-    UnsignedInt,
+    Scalar,
     Identifier,
     Operator,
     InvalidChar,
@@ -37,15 +38,14 @@ struct Token<'a>
     text: &'a str,
 }
 
-pub fn parse(input: &str) -> ExecResult<Box<Expression>>
+pub fn parse(input: &str) -> ExecResult<Vec<Box<Expression>>>
 {
     let mut parser = Parser::new(input)?;
+    let mut result = Vec::new();
 
-    let result = parse_expression(&mut parser)?;
-
-    if !parser.peek_kind(TokenKind::Eof)
+    while !parser.peek_kind(TokenKind::Eof)
     {
-        return Err(parser.err_expected("<EOF>"));
+        result.push(parse_expression(&mut parser)?);
     }
 
     Ok(result)
@@ -172,13 +172,13 @@ fn parse_call<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
 
 fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
 {
-    if parser.peek_kind(TokenKind::UnsignedInt)
+    if parser.peek_kind(TokenKind::Scalar)
     {
         let token = parser.next();
-        return match token.text.parse::<i64>()
+        return match token.text.parse::<Scalar>()
         {
-            Err(_) => Err(ExecError::new(token.source, "Invalid integer constant")),
-            Ok(val) => Ok(Expression::new_constant(Value::new_int(token.source, val)))
+            Err(_) => Err(ExecError::new(token.source, "Invalid scalar constant")),
+            Ok(val) => Ok(Expression::new_constant(Value::new_scalar(token.source, val)))
         };
     }
     else if parser.peek_kind(TokenKind::Identifier)
@@ -186,6 +186,35 @@ fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
         let token = parser.next();
 
         return Ok(Expression::new_read_named_var(token.source, token.text.to_owned()));
+    }
+    else if parser.peek_ch('<')
+    {
+        // Vector operator
+
+        let start = parser.next();
+
+        let mut exprs = Vec::new();
+
+        loop
+        {
+            exprs.push(parse_expression(parser)?);
+
+            if parser.peek_ch(',')
+            {
+                let _ = parser.next();
+                continue;
+            }
+            else if parser.peek_ch('>')
+            {
+                let _ = parser.next();
+
+                return Ok(Expression::new_vector(start.source, exprs));
+            }
+            else
+            {
+                return Err(parser.err_expected("\",\" or \">\" to end vector"));
+            }
+        }
     }
     else if parser.peek_ch('(')
     {
@@ -356,22 +385,33 @@ fn parse_tokens<'a>(input: &'a str) -> ExecResult<Vec<Token<'a>>>
             {
                 lexer.accept_char();
             }
-            result.push(lexer.take_token(TokenKind::UnsignedInt));
+
+            if lexer.peek() == '.'
+            {
+                lexer.accept_char();
+                while (lexer.peek() >= '0') && (lexer.peek() <= '9')
+                {
+                    lexer.accept_char();
+                }
+            }
+
+            result.push(lexer.take_token(TokenKind::Scalar));
         }
         else if (ch == '_') || ch.is_alphabetic()
         {
             lexer.accept_char();
 
-            while (lexer.peek() == '|') || lexer.peek().is_alphanumeric()
+            while (lexer.peek() == '_') || lexer.peek().is_alphanumeric()
             {
                 lexer.accept_char();
             }
             result.push(lexer.take_token(TokenKind::Identifier));
         }
         else if ch == '+' || ch == '-'
+            || ch == '*' || ch == '/'
             || ch == '(' || ch == ')'
             || ch == '{' || ch == '}'
-            || ch == '*' || ch == '/'
+            || ch == '<' || ch == '>'
             || ch == '.'
             || ch == ':'
             || ch == ','

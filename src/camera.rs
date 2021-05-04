@@ -2,6 +2,7 @@ use crate::math::Scalar;
 use crate::ray::Ray;
 use crate::vec::{Point3, Dir3};
 
+#[derive(Clone)]
 pub struct Camera
 {
     location: Point3,

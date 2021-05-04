@@ -3,6 +3,7 @@ use crate::geom::{Surface, BoundingSurface, Volume};
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 
+#[derive(Clone)]
 pub struct Aabb
 {
     min: Point3,

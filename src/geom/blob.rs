@@ -5,12 +5,14 @@ use crate::math::{EPSILON, Scalar};
 use crate::ray::{Ray, RayRange};
 use crate::vec::{Dir3, Point3};
 
+#[derive(Clone)]
 pub struct Blob
 {
     parts: Vec<BlobPart>,
     threshold: Scalar,
 }
 
+#[derive(Clone)]
 pub struct BlobPart
 {
     pub center: Point3,

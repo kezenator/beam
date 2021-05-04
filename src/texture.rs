@@ -1,6 +1,7 @@
 use crate::color::LinearRGB;
 use crate::vec::Point3;
 
+#[derive(Clone)]
 pub enum Texture
 {
     Solid(LinearRGB),

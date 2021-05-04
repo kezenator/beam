@@ -1,6 +1,7 @@
 use crate::geom::{Surface, SurfaceIntersection};
 use crate::ray::{Ray, RayRange};
 
+#[derive(Clone)]
 pub struct Merge
 {
     surfaces: Vec<Box<dyn Surface>>,

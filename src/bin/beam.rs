@@ -110,7 +110,7 @@ impl AppState
         AppState
         {
             options: RenderOptions::new(width, height),
-            desc: SceneDescription::new(StandardScene::Cornell),
+            desc: SceneDescription::new_standard(StandardScene::Cornell),
         }
     }
 
@@ -128,22 +128,22 @@ impl AppState
         {
             Keycode::Num1 =>
             {
-                self.desc = SceneDescription::new(StandardScene::BeamExample);
+                self.desc = SceneDescription::new_standard(StandardScene::BeamExample);
                 true
             },
             Keycode::Num2 =>
             {
-                self.desc = SceneDescription::new(StandardScene::Cornell);
+                self.desc = SceneDescription::new_standard(StandardScene::Cornell);
                 true
             },
             Keycode::Num3 =>
             {
-                self.desc = SceneDescription::new(StandardScene::Furnace);
+                self.desc = SceneDescription::new_standard(StandardScene::Furnace);
                 true
             },
             Keycode::Num4 =>
             {
-                self.desc = SceneDescription::new(StandardScene::Veach);
+                self.desc = SceneDescription::new_standard(StandardScene::Veach);
                 true
             },
             Keycode::F1 =>
@@ -177,10 +177,10 @@ impl AppState
             }
             Keycode::C =>
             {
-                println!("Camera Location: {:?}", self.desc.camera_location);
-                println!("Camera Look-at:  {:?}", self.desc.camera_look_at);
-                println!("Camera Up:       {:?}", self.desc.camera_up);
-                println!("Camera FOV:      {:?}", self.desc.camera_fov);
+                println!("Camera Location: {:?}", self.desc.camera.location);
+                println!("Camera Look-at:  {:?}", self.desc.camera.look_at);
+                println!("Camera Up:       {:?}", self.desc.camera.up);
+                println!("Camera FOV:      {:?}", self.desc.camera.fov);
                 false
             },
             Keycode::L =>
@@ -243,12 +243,12 @@ impl AppState
             },
             Keycode::KpPlus =>
             {
-                self.desc.camera_fov = (self.desc.camera_fov - 5.0).clamp(1.0, 175.0);
+                self.desc.camera.fov = (self.desc.camera.fov - 5.0).clamp(1.0, 175.0);
                 true
             },
             Keycode::KpMinus =>
             {
-                self.desc.camera_fov = (self.desc.camera_fov + 5.0).clamp(1.0, 175.0);
+                self.desc.camera.fov = (self.desc.camera.fov + 5.0).clamp(1.0, 175.0);
                 true
             },
             _ =>
@@ -267,10 +267,10 @@ impl AppState
 
     fn move_around(&mut self, factor_left_right: Scalar, factor_forward_back: Scalar)
     {
-        let look = self.desc.camera_look_at - self.desc.camera_location;
-        let right = look.cross(self.desc.camera_up).normalized();
-        let back = right.cross(self.desc.camera_up).normalized();
-        let up = self.desc.camera_up.normalized();
+        let look = self.desc.camera.look_at - self.desc.camera.location;
+        let right = look.cross(self.desc.camera.up).normalized();
+        let back = right.cross(self.desc.camera.up).normalized();
+        let up = self.desc.camera.up.normalized();
         
         // Don't move in the up/down direction
         let right = right - (up.dot(right) * up);
@@ -281,32 +281,32 @@ impl AppState
 
         let dir = dist_factor * (factor_left_right * right + factor_forward_back * back);
 
-        self.desc.camera_location += dir;
-        self.desc.camera_look_at += dir;
+        self.desc.camera.location += dir;
+        self.desc.camera.look_at += dir;
     }
 
     fn rotate_around(&mut self, degrees: Scalar)
     {
-        let dir = self.desc.camera_location - self.desc.camera_look_at;
+        let dir = self.desc.camera.location - self.desc.camera.look_at;
 
-        let rot = Mat4::rotation_3d(degrees.to_radians(), self.desc.camera_up);
+        let rot = Mat4::rotation_3d(degrees.to_radians(), self.desc.camera.up);
 
         let new_dir: Vec3 = (rot * Vec4::from_direction(dir)).into();
 
-        self.desc.camera_location = new_dir + self.desc.camera_look_at;
+        self.desc.camera.location = new_dir + self.desc.camera.look_at;
     }
 
     fn tilt(&mut self, degrees: Scalar)
     {
-        let dir = self.desc.camera_location - self.desc.camera_look_at;
+        let dir = self.desc.camera.location - self.desc.camera.look_at;
 
-        let right = dir.cross(self.desc.camera_up);
+        let right = dir.cross(self.desc.camera.up);
 
         let rot = Mat4::rotation_3d(degrees.to_radians(), right);
 
         let new_dir: Vec3 = (rot * Vec4::from_direction(dir)).into();
 
-        self.desc.camera_location = new_dir + self.desc.camera_look_at;
+        self.desc.camera.location = new_dir + self.desc.camera.look_at;
     }
 
     fn samples_to_csv(&self, x: i32, y: i32)

@@ -1,6 +1,6 @@
 use crate::camera::Camera;
 use crate::color::{LinearRGB, SRGB};
-use crate::desc::{SceneDescription, StandardScene};
+use crate::desc::{CameraDescription, SceneDescription, SceneSelection, StandardScene};
 use crate::geom::{Aabb, Sphere, Rectangle};
 use crate::lighting::LightingRegion;
 use crate::material::Material;
@@ -15,11 +15,14 @@ pub fn generate_description() -> SceneDescription
 {
     SceneDescription
     {
-        camera_location: Point3::new(277.5, 277.5, 2000.0),
-        camera_look_at: Point3::new(277.5, 277.5, 555.0),
-        camera_up: Point3::new(0.0, 1.0, 0.0),
-        camera_fov: 40.0,
-        scene: StandardScene::Cornell,
+        camera: CameraDescription
+        {
+            location: Point3::new(277.5, 277.5, 2000.0),
+            look_at: Point3::new(277.5, 277.5, 555.0),
+            up: Point3::new(0.0, 1.0, 0.0),
+            fov: 40.0,
+        },
+        selection: SceneSelection::Standard(StandardScene::Cornell),
     }
 }
 
@@ -62,7 +65,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 
     Scene::new(
         options.sampling_mode,
-        Camera::new(desc.camera_location, desc.camera_look_at, desc.camera_up, desc.camera_fov, (options.width as f64) / (options.height as f64)),
+        Camera::new(desc.camera.location, desc.camera.look_at, desc.camera.up, desc.camera.fov, (options.width as f64) / (options.height as f64)),
         // Lighting regions
         vec![
             LightingRegion::new_2(

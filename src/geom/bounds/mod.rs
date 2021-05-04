@@ -1,13 +1,14 @@
 use crate::geom::{BoundingSurface, Surface, SurfaceIntersection};
 use crate::ray::{Ray, RayRange};
 
-pub struct BoundedSurface<B: BoundingSurface, S: Surface>
+#[derive(Clone)]
+pub struct BoundedSurface<B: BoundingSurface + Clone + 'static, S: Surface + Clone + 'static>
 {
     bounds: B,
     surface: S,
 }
 
-impl<B: BoundingSurface, S: Surface> BoundedSurface<B, S>
+impl<B: BoundingSurface + Clone + 'static, S: Surface + Clone + 'static> BoundedSurface<B, S>
 {
     pub fn new(bounds: B, surface: S) -> Self
     {
@@ -15,7 +16,7 @@ impl<B: BoundingSurface, S: Surface> BoundedSurface<B, S>
     }
 }
 
-impl<B: BoundingSurface, S: Surface> Surface for BoundedSurface<B, S>
+impl<B: BoundingSurface + Clone + 'static, S: Surface + Clone + 'static> Surface for BoundedSurface<B, S>
 {
     fn closest_intersection_in_range<'r>(&self, ray: &'r Ray, range: &RayRange) -> Option<SurfaceIntersection<'r>>
     {

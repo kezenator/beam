@@ -4,6 +4,7 @@ use crate::geom::{Surface, Volume};
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 
+#[derive(Clone)]
 pub struct Plane
 {
     point: Point3,

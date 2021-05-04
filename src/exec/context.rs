@@ -29,21 +29,30 @@ impl Context
         self.frame.call_site
     }
 
-    pub fn get_named_var(&mut self, source: SourceLocation, name: &str) -> ExecResult<Value>
+    pub fn get_var_named(&mut self, source: SourceLocation, name: &str) -> ExecResult<Value>
     {
-        match self.frame.get_named(name)
+        match self.frame.get_var_named(name)
         {
             Some(val) => Ok(val),
             None => Err(ExecError::new(source, format!("Undefined variable \"{}\"", name))),
         }
     }
 
-    pub fn get_positional_var(&mut self, index: usize) -> ExecResult<Value>
+    pub fn get_param_named(&mut self, name: &str) -> ExecResult<Value>
     {
-        match self.frame.get_positional(index)
+        match self.frame.get_param_named(name)
         {
             Some(val) => Ok(val),
-            None => Err(ExecError::new(self.frame.call_site, format!("No positional variable #{}", index + 1))),
+            None => Err(ExecError::new(self.frame.call_site, format!("No named parameter \"{}\"", name))),
+        }
+    }
+
+    pub fn get_param_positional(&mut self, index: usize) -> ExecResult<Value>
+    {
+        match self.frame.get_param_positional(index)
+        {
+            Some(val) => Ok(val),
+            None => Err(ExecError::new(self.frame.call_site, format!("No positional parameter #{}", index + 1))),
         }
     }
 
@@ -91,6 +100,11 @@ impl Frame
         {
             ActualArguments::Positional(vec) =>
             {
+                for (index, formal) in formal_arguments.iter().enumerate()
+                {
+                    result.named.insert(formal.clone(), vec[index].clone());
+                }
+
                 result.positional = vec;
             },
             ActualArguments::Named(map) =>
@@ -114,7 +128,7 @@ impl Frame
         result
     }
 
-    fn get_named(&self, name: &str) -> Option<Value>
+    fn get_var_named(&self, name: &str) -> Option<Value>
     {
         if let Some(here) = self.named.get(name)
         {
@@ -123,13 +137,23 @@ impl Frame
 
         if let Some(parent) = &self.parent
         {
-            return parent.get_named(name);
+            return parent.get_var_named(name);
         }
 
         None
     }
 
-    fn get_positional(&self, index: usize) -> Option<Value>
+    fn get_param_named(&self, name: &str) -> Option<Value>
+    {
+        if let Some(here) = self.named.get(name)
+        {
+            return Some((*here).clone())
+        }
+
+        None
+    }
+
+    fn get_param_positional(&self, index: usize) -> Option<Value>
     {
         if index < self.positional.len()
         {

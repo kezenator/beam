@@ -11,6 +11,7 @@ pub enum MaterialInteraction
     Emit{ emitted_color: LinearRGB},
 }
 
+#[derive(Clone)]
 pub enum Material
 {
     Diffuse(Texture),

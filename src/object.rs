@@ -3,6 +3,7 @@ use crate::intersection::ObjectIntersection;
 use crate::material::Material;
 use crate::ray::{Ray, RayRange};
 
+#[derive(Clone)]
 pub struct Object
 {
     surface: Box<dyn Surface>,
@@ -11,6 +12,15 @@ pub struct Object
 
 impl Object
 {
+    pub fn new_boxed(surface: Box<dyn Surface>, material: Material) -> Self
+    {
+        Object
+        {
+            surface,
+            material,
+        }
+    }
+
     pub fn new<S>(surface: S, material: Material) -> Self
         where S: Surface + 'static
     {

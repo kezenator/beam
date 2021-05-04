@@ -1,6 +1,6 @@
 use crate::camera::Camera;
 use crate::color::SRGB;
-use crate::desc::{SceneDescription, StandardScene};
+use crate::desc::{CameraDescription, SceneDescription, SceneSelection, StandardScene};
 use crate::geom::{Aabb, Rectangle, Sphere, bounds::BoundedSurface, csg::Merge, csg::Difference};
 use crate::lighting::LightingRegion;
 use crate::math::Scalar;
@@ -15,11 +15,14 @@ pub fn generate_description() -> SceneDescription
 {
     SceneDescription
     {
-        camera_location: Point3::new(-12.360750, -22.707277, 35.0),
-        camera_look_at: Point3::new(-0.390985, 10.182305, 0.0),
-        camera_up: Point3::new(0.0, 0.0, 1.0),
-        camera_fov: 45.0,
-        scene: StandardScene::Veach,
+        camera: CameraDescription
+        {
+            location: Point3::new(-12.360750, -22.707277, 35.0),
+            look_at: Point3::new(-0.390985, 10.182305, 0.0),
+            up: Point3::new(0.0, 0.0, 1.0),
+            fov: 45.0,
+        },
+        selection: SceneSelection::Standard(StandardScene::Veach),
     }
 }
 
@@ -98,7 +101,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
         let mut metal_bar = |y: Scalar, z: Scalar, fuzz: Scalar|
         {
             let pos = Point3::new(0.0, y, z);
-            let to_camera = (Point3::new(0.0, desc.camera_location.y, desc.camera_location.z) - pos).normalized();
+            let to_camera = (Point3::new(0.0, desc.camera.location.y, desc.camera.location.z) - pos).normalized();
             let to_light = (Point3::new(0.0, LIGHT_Y, LIGHT_Z) - pos).normalized();
 
             let ny = (to_light.z - to_camera.z) / (to_camera.y - to_light.y);
@@ -126,7 +129,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 
     Scene::new(
         options.sampling_mode,
-        Camera::new(desc.camera_location, desc.camera_look_at, desc.camera_up, desc.camera_fov, (options.width as f64) / (options.height as f64)),
+        Camera::new(desc.camera.location, desc.camera.look_at, desc.camera.up, desc.camera.fov, (options.width as f64) / (options.height as f64)),
         vec![
             lighting_region,
         ],
