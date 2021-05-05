@@ -182,7 +182,7 @@ impl Scene
 
                             let final_probability = cur_probability * probability;
 
-                            return (emitted_color.combined_with(&cur_attenuation).divided_by_scalar(final_probability), final_probability);
+                            return (emitted_color.combined_with(&cur_attenuation), final_probability);
                         },
                     }
                 },
@@ -232,7 +232,7 @@ impl Scene
 
         stats.stopped_due_to_max_rays += 1;
 
-        (S::termination_contdition(cur_attenuation).divided_by_scalar(cur_probability), cur_probability)
+        (S::termination_contdition(cur_attenuation), cur_probability)
     }
 
     pub fn trace_intersection<'r, 'm>(&'m self, ray: &'r Ray) -> Option<ObjectIntersection<'r, 'm>>

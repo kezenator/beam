@@ -39,6 +39,7 @@ impl RenderOptions
     }
 }
 
+#[derive(Clone)]
 pub struct PixelRect
 {
     pub x: u32,
@@ -50,7 +51,7 @@ pub struct PixelRect
 pub struct PixelUpdate
 {
     pub rect: PixelRect,
-    pub color: color::LinearRGB,
+    pub color: color::LinearRGB
 }
 
 pub struct RenderUpdate
@@ -93,11 +94,53 @@ impl Drop for Renderer
     }
 }
 
+struct SampleUpdate
+{
+    pub rect: PixelRect,
+    pub collector: SampleCollector
+}
+
 struct SampleResult
 {
-    pixels: Vec<PixelUpdate>,
+    pixels: Vec<SampleUpdate>,
     stats: SceneSampleStats,
     duration: Duration,
+}
+
+#[derive(Clone)]
+struct SampleCollector
+{
+    sum: color::LinearRGB,
+    samples: u64,
+}
+
+impl SampleCollector
+{
+    pub fn new() -> Self
+    {
+        SampleCollector
+        {
+            sum: color::LinearRGB::black(),
+            samples: 0,
+        }
+    }
+
+    pub fn add_sample(&mut self, color: color::LinearRGB, probability: Scalar)
+    {
+        self.sum = self.sum + color.divided_by_scalar(probability);
+        self.samples += 1;
+    }
+
+    pub fn add_collection(&mut self, collector: &SampleCollector)
+    {
+        self.sum = self.sum + collector.sum;
+        self.samples += collector.samples;
+    }
+
+    pub fn result(&self) -> color::LinearRGB
+    {
+        self.sum.divided_by_scalar(self.samples as Scalar)
+    }
 }
 
 struct RenderState
@@ -106,7 +149,7 @@ struct RenderState
     desc: SceneDescription,
     stats: SceneSampleStats,
     total_duration: Duration,
-    pixels: Vec<color::LinearRGB>,
+    pixels: Vec<SampleCollector>,
 }
 
 impl RenderState
@@ -121,7 +164,7 @@ impl RenderState
             desc: desc,
             stats: SceneSampleStats::new(),
             total_duration: Duration::default(),
-            pixels: vec![color::LinearRGB::black(); num_pixels],
+            pixels: vec![SampleCollector::new(); num_pixels],
         }
     }
 }
@@ -296,24 +339,22 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
             state.stats = state.stats + chunk.stats;
             state.total_duration = state.total_duration + chunk.duration;
 
-            let mut new_pixels = chunk.pixels;
-
-            for mut pixel in new_pixels.iter_mut()
+            for pixel in chunk.pixels.iter()
             {
                 let x = pixel.rect.x;
                 let y = pixel.rect.y;
                 let index = (y * state.options.width + x) as usize;
 
-                let sum = state.pixels[index].clone();
-                let sum = sum + pixel.color.clone();
+                state.pixels[index].add_collection(&pixel.collector);
 
-                state.pixels[index] = sum.clone();
-
-                pixel.color = sum.divided_by_scalar(total_samples_per_pixel as Scalar);
+                pixels.push(PixelUpdate
+                {
+                    rect: pixel.rect.clone(),
+                    color: state.pixels[index].result(),
+                });
             }
 
             collected_chunks += 1;
-            pixels.extend(new_pixels);
         }
 
         let actions = if step > 1
@@ -394,7 +435,7 @@ fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_sampl
         let pixels = updates
             .into_iter()
             .map(|update| calculate_update(&options, &scene, &mut sampler, new_samples_per_pixel, &mut stats, update))
-            .collect::<Vec<PixelUpdate>>();
+            .collect::<Vec<SampleUpdate>>();
 
         let duration = now.elapsed();
 
@@ -413,9 +454,9 @@ fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_sampl
     }
 }
 
-fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sampler, new_samples_per_pixel: usize, stats: &mut SceneSampleStats, update: PixelRect) -> PixelUpdate
+fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sampler, new_samples_per_pixel: usize, stats: &mut SceneSampleStats, update: PixelRect) -> SampleUpdate
 {
-    let mut color = color::LinearRGB::black();
+    let mut collector = SampleCollector::new();
 
     match options.illumination_mode
     {
@@ -424,7 +465,7 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
             let u = (update.x as Scalar) / (options.width as Scalar);
             let v = (update.y as Scalar) / (options.height as Scalar);
 
-            color = scene.path_trace_local_lighting(u, v, sampler, stats).0;
+            collector.add_sample(scene.path_trace_local_lighting(u, v, sampler, stats).0, 1.0);
         },
         RenderIlluminationMode::Global =>
         {
@@ -433,14 +474,15 @@ fn calculate_update(options: &RenderOptions, scene: &Scene, sampler: &mut Sample
                 let u = ((update.x as Scalar) + sampler.uniform_scalar_unit()) / (options.width as Scalar);
                 let v = ((update.y as Scalar) + sampler.uniform_scalar_unit()) / (options.height as Scalar);
 
-                color = color + scene.path_trace_global_lighting(u, v, sampler, stats).0;
+                let (color, probability) = scene.path_trace_global_lighting(u, v, sampler, stats);
+                collector.add_sample(color, probability);
             }
         },
     };
 
-    PixelUpdate
+    SampleUpdate
     {
         rect: update,
-        color: color,
+        collector: collector,
     }
 }

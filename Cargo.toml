@@ -8,6 +8,7 @@ edition = "2018"
 crossbeam = { version = "0.8.0" }
 float-ord = { version = "0.3.0" }
 itertools = { version = "0.10.0" }
+notify = { version = "4.0.16" }
 num_cpus = { version = "1.13.0" }
 rand = { version = "0.8.3", features = ["small_rng"] }
 sdl2 = { version = "0.34.3", features = ["bundled", "static-link"] }

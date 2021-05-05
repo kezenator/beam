@@ -1,9 +1,11 @@
 use std::io::prelude::*;
+use std::time::Duration;
 
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Mod};
-use std::time::Duration;
+
+use notify::{Watcher, DebouncedEvent, RecursiveMode, watcher};
 
 use beam::color::LinearRGB;
 use beam::desc::{SceneDescription, StandardScene};
@@ -17,6 +19,8 @@ fn main() -> Result<(), String>
 {
     const WIDTH: u32 = 1920;
     const HEIGHT: u32 = 1080;
+
+    let filename = std::env::args().nth(1);
 
     unsafe
     {
@@ -41,6 +45,17 @@ fn main() -> Result<(), String>
     let texture_creator = canvas.texture_creator();
 
     let mut app_state = AppState::new(WIDTH, HEIGHT);
+
+    let (notify_tx, notify_rx) = std::sync::mpsc::channel();
+    let mut watcher = watcher(notify_tx, Duration::from_millis(250)).unwrap();
+
+    if let Some(filename) = &filename
+    {
+        app_state.load_file(&filename);
+
+        watcher.watch(&filename, RecursiveMode::Recursive).expect("Could not watch file for modifications");
+    }
+
     let mut renderer = app_state.new_renderer();
 
     canvas.set_draw_color(Color::RGB(0, 255, 255));
@@ -86,6 +101,17 @@ fn main() -> Result<(), String>
             canvas.window_mut().set_title(&format!("Beam - {}", update.progress)).expect("Could not set window title");
         }
 
+        while let Ok(watch_event) = notify_rx.try_recv()
+        {
+            if let DebouncedEvent::Write(_) = watch_event
+            {
+                if let Some(filename) = &filename
+                {
+                    app_state.load_file(&filename);
+                    renderer = app_state.new_renderer();
+                }
+            }
+        }
 
         let texture = surface.as_texture(&texture_creator).unwrap();
         canvas.copy(&texture, None, None)?;
@@ -99,6 +125,7 @@ fn main() -> Result<(), String>
 
 struct AppState
 {
+    filename: Option<String>,
     options: RenderOptions,
     desc: SceneDescription,
 }
@@ -109,6 +136,7 @@ impl AppState
     {
         AppState
         {
+            filename: None,
             options: RenderOptions::new(width, height),
             desc: SceneDescription::new_standard(StandardScene::Cornell),
         }
@@ -117,6 +145,15 @@ impl AppState
     pub fn new_renderer(&self) -> Renderer
     {
         Renderer::new(self.options.clone(), self.desc.clone())
+    }
+
+    pub fn load_file(&mut self, filename: &str)
+    {
+        self.filename = Some(filename.to_owned());
+
+        let text = std::fs::read_to_string(filename).expect("Could not load file");
+
+        self.desc = SceneDescription::new_script(text).expect("Could not execute file");
     }
 
     pub fn handle_keycode(&mut self, keycode: Keycode, keymod: Mod) -> bool
@@ -145,6 +182,18 @@ impl AppState
             {
                 self.desc = SceneDescription::new_standard(StandardScene::Veach);
                 true
+            },
+            Keycode::Num0 =>
+            {
+                if let Some(filename) = self.filename.clone()
+                {
+                    self.load_file(&filename);
+                    true
+                }
+                else
+                {
+                    false
+                }
             },
             Keycode::F1 =>
             {
