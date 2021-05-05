@@ -216,6 +216,18 @@ fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
             }
         }
     }
+    else if parser.peek_ch('-')
+    {
+        let op = parser.next();
+
+        let arg = parse_factor(parser)?;
+
+        let actual_args = ActualArgumentExpressions::Positional(vec![arg]);
+
+        let function = Expression::new_read_named_var(op.source, "neg".to_owned());
+
+        return Ok(Expression::new_call(op.source, function, actual_args));
+    }
     else if parser.peek_ch('(')
     {
         let _ = parser.next();

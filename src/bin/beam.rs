@@ -151,9 +151,30 @@ impl AppState
     {
         self.filename = Some(filename.to_owned());
 
-        let text = std::fs::read_to_string(filename).expect("Could not load file");
+        match std::fs::read_to_string(filename)
+        {
+            Ok(text) =>
+            {
+                match SceneDescription::new_script(text)
+                {
+                    Ok(desc) =>
+                    {
+                        self.desc = desc;
+                        return;
+                    },
+                    Err(err) =>
+                    {
+                        println!("Error: Could not execute script: {:?}", err);
+                    },
+                }
+            },
+            Err(err) =>
+            {
+                println!("Error: Could not load file: {:?}", err);
+            },
+        }
 
-        self.desc = SceneDescription::new_script(text).expect("Could not execute file");
+        self.desc = SceneDescription::new_standard(StandardScene::Cornell);
     }
 
     pub fn handle_keycode(&mut self, keycode: Keycode, keymod: Mod) -> bool

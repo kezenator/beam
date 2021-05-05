@@ -56,6 +56,11 @@ impl Context
         }
     }
 
+    pub fn get_param_all_positional(&mut self) -> Vec<Value>
+    {
+        self.frame.get_param_all_positional()
+    }
+
     pub fn new_frame(&self, call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Context
     {
         Context
@@ -160,5 +165,10 @@ impl Frame
             return Some(self.positional[index].clone());
         }
         None
+    }
+
+    fn get_param_all_positional(&self) -> Vec<Value>
+    {
+        self.positional.clone()
     }
 }

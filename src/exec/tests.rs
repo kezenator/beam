@@ -36,6 +36,8 @@ fn test_uint()
     check_scalar("(1 + 2) * 3", 9.0);
     check_scalar("1 + (2 * 3)", 7.0);
     check_scalar("1.5 + 2.25", 3.75);
+    check_scalar("-1.5", -1.5);
+    check_scalar("-1.5 + -2.0", -3.5);
 
     check_scalar("add(1, mul(2, 3))", 7.0);
     check_scalar("add{ lhs: 1, rhs: mul{ lhs: 2, rhs: 3 }}", 7.0);

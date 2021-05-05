@@ -11,6 +11,7 @@ pub mod csg;
 pub mod disc;
 pub mod plane;
 pub mod rectangle;
+pub mod sdf;
 pub mod sphere;
 
 pub use aabb::Aabb;

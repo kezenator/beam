@@ -1,7 +1,8 @@
 use crate::color::SRGB;
 use crate::desc::CameraDescription;
 use crate::exec::{Context, Function, Value};
-use crate::geom::{Sphere};
+use crate::geom::{Plane, Sphere};
+use crate::geom::sdf::ConcreteSdf;
 use crate::material::Material;
 use crate::object::Object;
 use crate::texture::Texture;
@@ -9,6 +10,17 @@ use crate::texture::Texture;
 pub fn get_inbuilt_functions() -> Vec<Function>
 {
     let mut result = Vec::new();
+
+    result.push(Function::new_inbuilt(
+        "neg".to_string(),
+        vec!["val".to_owned()],
+        |context: &mut Context|
+        {
+            let val = context.get_param_positional(0)?.into_scalar()?;
+
+            Ok(Value::new_scalar(context.get_call_site(), -val))
+        }
+    ));
 
     for name in ["+", "add"].iter()
     {
@@ -80,24 +92,112 @@ pub fn get_inbuilt_functions() -> Vec<Function>
     ));
 
     result.push(Function::new_inbuilt(
-        "emit".to_owned(),
-        vec!["color".to_owned()],
+        "sdf_sphere".to_owned(),
+        vec!["center".to_owned(), "radius".to_owned()],
         |context: &mut Context|
         {
-            let color = context.get_param_named("color")?.into_color()?;
+            let center = context.get_param_named("center")?.into_vec3()?;
+            let radius = context.get_param_named("radius")?.into_scalar()?;
 
-            Ok(Value::new_material(context.get_call_site(), Material::emit(Texture::solid(color))))
+            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Sphere{ center, radius }))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "sdf_capsule".to_owned(),
+        vec!["a".to_owned(), "b".to_owned(), "radius".to_owned()],
+        |context: &mut Context|
+        {
+            let a = context.get_param_named("a")?.into_vec3()?;
+            let b = context.get_param_named("b")?.into_vec3()?;
+            let radius = context.get_param_named("radius")?.into_scalar()?;
+
+            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Capsule{ a, b, radius }))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "sdf_union".to_owned(),
+        vec![],
+        |context: &mut Context|
+        {
+            let members = context.get_param_all_positional();
+
+            let members = members
+                .into_iter()
+                .map(|i| i.into_sdf())
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Union{ members }))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "sdf_annular".to_owned(),
+        vec!["sdf".to_owned(), "radius".to_owned()],
+        |context: &mut Context|
+        {
+            let sdf = context.get_param_named("sdf")?.into_sdf()?;
+            let radius = context.get_param_named("radius")?.into_scalar()?;
+
+            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Annular{ sdf: Box::new(sdf), radius }))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "plane".to_owned(),
+        vec!["point".to_owned(), "normal".to_owned()],
+        |context: &mut Context|
+        {
+            let point = context.get_param_named("point")?.into_vec3()?;
+            let normal = context.get_param_named("normal")?.into_vec3()?;
+
+            Ok(Value::new_surface(context.get_call_site(), Box::new(Plane::new(point, normal))))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "texture_checkerboard".to_owned(),
+        vec!["a".to_owned(), "b".to_owned()],
+        |context: &mut Context|
+        {
+            let a = context.get_param_named("a")?.into_color()?;
+            let b = context.get_param_named("b")?.into_color()?;
+
+            Ok(Value::new_texture(context.get_call_site(), Texture::checkerboard(a, b)))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "texture_sdf".to_owned(),
+        vec!["sdf".to_owned()],
+        |context: &mut Context|
+        {
+            let sdf = context.get_param_named("sdf")?.into_sdf()?;
+
+            Ok(Value::new_texture(context.get_call_site(), Texture::sdf(sdf)))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "emit".to_owned(),
+        vec!["texture".to_owned()],
+        |context: &mut Context|
+        {
+            let texture = context.get_param_named("texture")?.into_texture()?;
+
+            Ok(Value::new_material(context.get_call_site(), Material::emit(texture)))
         }
     ));
 
     result.push(Function::new_inbuilt(
         "diffuse".to_owned(),
-        vec!["color".to_owned()],
+        vec!["texture".to_owned()],
         |context: &mut Context|
         {
-            let color = context.get_param_named("color")?.into_color()?;
+            let texture = context.get_param_named("texture")?.into_texture()?;
 
-            Ok(Value::new_material(context.get_call_site(), Material::diffuse(Texture::solid(color))))
+            Ok(Value::new_material(context.get_call_site(), Material::diffuse(texture)))
         }
     ));
 

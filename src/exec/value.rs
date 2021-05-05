@@ -2,9 +2,11 @@ use crate::color::LinearRGB;
 use crate::desc::CameraDescription;
 use crate::exec::{ExecError, ExecResult, Function, SourceLocation};
 use crate::geom::Surface;
+use crate::geom::sdf::ConcreteSdf;
 use crate::material::Material;
 use crate::math::Scalar;
 use crate::object::Object;
+use crate::texture::Texture;
 use crate::vec::Vec3;
 
 #[derive(Clone)]
@@ -18,6 +20,8 @@ pub enum ValueData
     Material(Material),
     Color(LinearRGB),
     Object(Object),
+    Texture(Texture),
+    Sdf(ConcreteSdf),
 }
 
 #[derive(Clone)]
@@ -52,6 +56,16 @@ impl Value
     pub fn new_color(source: SourceLocation, color: LinearRGB) -> Value
     {
         Value { source, data: ValueData::Color(color) }
+    }
+
+    pub fn new_texture(source: SourceLocation, texture: Texture) -> Value
+    {
+        Value { source, data: ValueData::Texture(texture) }
+    }
+
+    pub fn new_sdf(source: SourceLocation, sdf: ConcreteSdf) -> Value
+    {
+        Value { source, data: ValueData::Sdf(sdf) }
     }
 
     pub fn new_surface(source: SourceLocation, surface: Box<dyn Surface>) -> Value
@@ -125,6 +139,25 @@ impl Value
         {
             ValueData::Color(val) => Ok(val),
             _ => Err(self.type_error("Color")),
+        }
+    }
+
+    pub fn into_texture(self) -> ExecResult<Texture>
+    {
+        match self.data
+        {
+            ValueData::Texture(val) => Ok(val),
+            ValueData::Color(val) => Ok(Texture::solid(val)),
+            _ => Err(self.type_error("Texture")),
+        }
+    }
+
+    pub fn into_sdf(self) -> ExecResult<ConcreteSdf>
+    {
+        match self.data
+        {
+            ValueData::Sdf(val) => Ok(val),
+            _ => Err(self.type_error("Sdf")),
         }
     }
 

@@ -1,4 +1,5 @@
 use crate::color::LinearRGB;
+use crate::geom::sdf::{ConcreteSdf, Sdf};
 use crate::vec::Point3;
 
 #[derive(Clone)]
@@ -6,6 +7,7 @@ pub enum Texture
 {
     Solid(LinearRGB),
     Checkerboard(LinearRGB, LinearRGB),
+    Sdf(ConcreteSdf),
 }
 
 impl Texture
@@ -18,6 +20,11 @@ impl Texture
     pub fn checkerboard<C1: Into<LinearRGB>, C2: Into<LinearRGB>>(c1: C1, c2: C2) -> Texture
     {
         Texture::Checkerboard(c1.into(), c2.into())
+    }
+
+    pub fn sdf(sdf: ConcreteSdf) -> Texture
+    {
+        Texture::Sdf(sdf)
     }
 
     pub fn get_color_at(&self, point: Point3) -> LinearRGB
@@ -39,6 +46,28 @@ impl Texture
                 else
                 {
                     *c2
+                }
+            }
+            Texture::Sdf(sdf) =>
+            {
+                let (val, _normal) = sdf.distance_and_normal(point);
+
+                if val.abs() < 0.5
+                {
+                    LinearRGB::white()
+                }
+                else
+                {
+                    let prod = if ((val.abs().round() as u64) & 1) == 0 { 0.5 } else { 1.0 };
+
+                    if val.is_sign_positive()
+                    {
+                        LinearRGB::new(1.0, 0.5, 0.2).multiplied_by_scalar(prod)
+                    }
+                    else
+                    {
+                        LinearRGB::new(0.1, 0.6, 0.8).multiplied_by_scalar(prod)
+                    }
                 }
             }
         }
