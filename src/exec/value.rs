@@ -12,6 +12,8 @@ use crate::vec::Vec3;
 #[derive(Clone)]
 pub enum ValueData
 {
+    Void,
+    Bool(bool),
     Scalar(Scalar),
     Vec3(Vec3),
     Function(Function),
@@ -33,6 +35,16 @@ pub struct Value
 
 impl Value
 {
+    pub fn new_void() -> Value
+    {
+        Value { source: SourceLocation::inbuilt(), data: ValueData::Void }
+    }
+
+    pub fn new_bool(source: SourceLocation, val: bool) -> Value
+    {
+        Value { source, data: ValueData::Bool(val) }
+    }
+
     pub fn new_scalar(source: SourceLocation, val: Scalar) -> Value
     {
         Value { source, data: ValueData::Scalar(val) }
@@ -86,6 +98,15 @@ impl Value
     pub fn source_location(&self) -> SourceLocation
     {
         self.source
+    }
+    
+    pub fn into_bool(self) -> ExecResult<bool>
+    {
+        match self.data
+        {
+            ValueData::Bool(val) => Ok(val),
+            _ => Err(self.type_error("Bool")),
+        }
     }
     
     pub fn into_scalar(self) -> ExecResult<Scalar>

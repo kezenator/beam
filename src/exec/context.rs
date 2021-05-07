@@ -1,10 +1,12 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use crate::exec::{ActualArguments, ExecError, ExecResult, SourceLocation, Value};
 
+#[derive(Clone)]
 pub struct Context
 {
-    frame: Rc<Frame>,
+    frame: Rc<RefCell<Frame>>,
 }
 
 impl Context
@@ -20,59 +22,80 @@ impl Context
 
         Context
         {
-            frame: Rc::new(frame),
+            frame: Rc::new(RefCell::new(frame)),
+        }
+    }
+
+    pub fn new_root_frame(call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Context
+    {
+        Context
+        {
+            frame: Rc::new(RefCell::new(Frame::new_frame(None, call_site, formal_arguments, actual_arguments))),
         }
     }
 
     pub fn get_call_site(&self) -> SourceLocation
     {
-        self.frame.call_site
+        self.frame.borrow().call_site
     }
 
     pub fn get_var_named(&mut self, source: SourceLocation, name: &str) -> ExecResult<Value>
     {
-        match self.frame.get_var_named(name)
+        match self.frame.borrow().get_var_named(name)
         {
             Some(val) => Ok(val),
             None => Err(ExecError::new(source, format!("Undefined variable \"{}\"", name))),
         }
     }
 
+    pub fn set_var_named(&mut self, name: &str, value: Value)
+    {
+        self.frame.borrow_mut().set_var_named(name, value);
+    }
+
     pub fn get_param_named(&mut self, name: &str) -> ExecResult<Value>
     {
-        match self.frame.get_param_named(name)
+        match self.frame.borrow().get_param_named(name)
         {
             Some(val) => Ok(val),
-            None => Err(ExecError::new(self.frame.call_site, format!("No named parameter \"{}\"", name))),
+            None => Err(ExecError::new(self.frame.borrow().call_site, format!("No named parameter \"{}\"", name))),
         }
     }
 
     pub fn get_param_positional(&mut self, index: usize) -> ExecResult<Value>
     {
-        match self.frame.get_param_positional(index)
+        match self.frame.borrow().get_param_positional(index)
         {
             Some(val) => Ok(val),
-            None => Err(ExecError::new(self.frame.call_site, format!("No positional parameter #{}", index + 1))),
+            None => Err(ExecError::new(self.frame.borrow().call_site, format!("No positional parameter #{}", index + 1))),
         }
     }
 
     pub fn get_param_all_positional(&mut self) -> Vec<Value>
     {
-        self.frame.get_param_all_positional()
+        self.frame.borrow().get_param_all_positional()
     }
 
-    pub fn new_frame(&self, call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Context
+    pub fn sub_frame(&self, call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Context
     {
         Context
         {
-            frame: Rc::new(Frame::new_sub(self.frame.clone(), call_site, formal_arguments, actual_arguments)),
+            frame: Rc::new(RefCell::new(Frame::new_frame(Some(self.frame.clone()), call_site, formal_arguments, actual_arguments))),
+        }
+    }
+
+    pub fn sub_block(&self) -> Context
+    {
+        Context
+        {
+            frame: Rc::new(RefCell::new(Frame::new_block(self.frame.clone()))),
         }
     }
 }
 
 struct Frame
 {
-    parent: Option<Rc<Frame>>,
+    parent: Option<Rc<RefCell<Frame>>>,
     call_site: SourceLocation,
     positional: Vec<Value>,
     named: HashMap<String, Value>,
@@ -91,11 +114,24 @@ impl Frame
         }
     }
 
-    fn new_sub(parent: Rc<Frame>, call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Self
+    fn new_block(parent: Rc<RefCell<Frame>>) -> Self
+    {
+        let call_site = parent.borrow().call_site;
+
+        Frame
+        {
+            parent: Some(parent.clone()),
+            call_site,
+            positional: Vec::new(),
+            named: HashMap::new(),
+        }
+    }
+
+    fn new_frame(parent: Option<Rc<RefCell<Frame>>>, call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Self
     {
         let mut result = Frame
         {
-            parent: Some(parent),
+            parent,
             call_site: call_site,
             positional: Vec::new(),
             named: HashMap::new(),
@@ -142,10 +178,15 @@ impl Frame
 
         if let Some(parent) = &self.parent
         {
-            return parent.get_var_named(name);
+            return parent.borrow().get_var_named(name);
         }
 
         None
+    }
+
+    pub fn set_var_named(&mut self, name: &str, value: Value)
+    {
+        self.named.insert(name.to_owned(), value);
     }
 
     fn get_param_named(&self, name: &str) -> Option<Value>

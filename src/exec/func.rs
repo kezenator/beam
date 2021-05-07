@@ -2,8 +2,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use crate::exec::{Context, ExecResult, Expression, SourceLocation, Value};
 
-//pub mod core;
-
+#[derive(Clone)]
 pub enum ActualArgumentExpressions
 {
     Positional(Vec<Box<Expression>>),
@@ -53,6 +52,7 @@ type InbuiltFunction = dyn Fn(&mut Context) -> ExecResult<Value>;
 enum FunctionCode
 {
     Inbuilt(Box<InbuiltFunction>),
+    Expression(Box<Expression>),
 }
 
 struct FunctionData
@@ -60,6 +60,7 @@ struct FunctionData
     source: SourceLocation,
     name: String,
     formal_arguments: Vec<String>,
+    parent_context: Option<Context>,
     code: FunctionCode,
 }
 
@@ -71,15 +72,31 @@ pub struct Function
 
 impl Function
 {
-    pub fn new_inbuilt<F>(name: String, formal_arguments: Vec<String>, code: F) -> Function
+    pub fn new_inbuilt<F>(name: String, formal_arguments: Vec<String>, function: F) -> Function
         where F: Fn(&mut Context) -> ExecResult<Value> + Sized + 'static
     {
-        let code = FunctionCode::Inbuilt(Box::new(code));
+        let code = FunctionCode::Inbuilt(Box::new(function));
 
         let data = Rc::new(FunctionData{
             source: SourceLocation::inbuilt(),
             name,
             formal_arguments,
+            parent_context: None,
+            code,
+        });
+
+        Function{ data }
+    }
+
+    pub fn new_expression(source: SourceLocation, name: String, formal_arguments: Vec<String>, context: &mut Context, expression: Box<Expression>) -> Function
+    {
+        let code = FunctionCode::Expression(expression);
+
+        let data = Rc::new(FunctionData{
+            source,
+            name,
+            formal_arguments,
+            parent_context: Some(context.clone()),
             code,
         });
 
@@ -96,13 +113,18 @@ impl Function
         self.data.source
     }
 
-    pub fn call(&self, context: &mut Context, call_site: SourceLocation, actual_arguments: ActualArguments) -> ExecResult<Value>
+    pub fn call(&self, _context: &mut Context, call_site: SourceLocation, actual_arguments: ActualArguments) -> ExecResult<Value>
     {
-        let mut sub_context = context.new_frame(call_site, &self.data.formal_arguments, actual_arguments);
+        let mut context = match &self.data.parent_context
+        {
+            Some(parent) => parent.sub_frame(call_site, &self.data.formal_arguments, actual_arguments),
+            None => Context::new_root_frame(call_site, &self.data.formal_arguments, actual_arguments),
+        };
 
         match &self.data.code
         {
-            FunctionCode::Inbuilt(inbuilt) => inbuilt(&mut sub_context),
+            FunctionCode::Inbuilt(inbuilt) => inbuilt(&mut context),
+            FunctionCode::Expression(expression) => expression.evaluate(&mut context),
         }
     }
 }

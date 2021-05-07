@@ -11,6 +11,36 @@ pub fn get_inbuilt_functions() -> Vec<Function>
 {
     let mut result = Vec::new();
 
+    for name in ["==", "eq"].iter()
+    {
+        result.push(Function::new_inbuilt(
+            name.to_string(),
+            vec!["lhs".to_owned(), "rhs".to_owned()],
+            |context: &mut Context|
+            {
+                let lhs = context.get_param_positional(0)?.into_scalar()?;
+                let rhs = context.get_param_positional(1)?.into_scalar()?;
+
+                Ok(Value::new_bool(context.get_call_site(), lhs == rhs))
+            }
+        ));
+    }
+
+    for name in ["!=", "neq"].iter()
+    {
+        result.push(Function::new_inbuilt(
+            name.to_string(),
+            vec!["lhs".to_owned(), "rhs".to_owned()],
+            |context: &mut Context|
+            {
+                let lhs = context.get_param_positional(0)?.into_scalar()?;
+                let rhs = context.get_param_positional(1)?.into_scalar()?;
+
+                Ok(Value::new_bool(context.get_call_site(), lhs != rhs))
+            }
+        ));
+    }
+
     result.push(Function::new_inbuilt(
         "neg".to_string(),
         vec!["val".to_owned()],
@@ -37,6 +67,21 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         ));
     }
 
+    for name in ["-", "sub"].iter()
+    {
+        result.push(Function::new_inbuilt(
+            name.to_string(),
+            vec!["lhs".to_owned(), "rhs".to_owned()],
+            |context: &mut Context|
+            {
+                let lhs = context.get_param_positional(0)?.into_scalar()?;
+                let rhs = context.get_param_positional(1)?.into_scalar()?;
+
+                Ok(Value::new_scalar(context.get_call_site(), lhs - rhs))
+            }
+        ));
+    }
+
     for name in ["*", "mul"].iter()
     {
         result.push(Function::new_inbuilt(
@@ -48,6 +93,21 @@ pub fn get_inbuilt_functions() -> Vec<Function>
                 let rhs = context.get_param_positional(1)?.into_scalar()?;
 
                 Ok(Value::new_scalar(context.get_call_site(), lhs * rhs))
+            }
+        ));
+    }
+
+    for name in ["/", "div"].iter()
+    {
+        result.push(Function::new_inbuilt(
+            name.to_string(),
+            vec!["lhs".to_owned(), "rhs".to_owned()],
+            |context: &mut Context|
+            {
+                let lhs = context.get_param_positional(0)?.into_scalar()?;
+                let rhs = context.get_param_positional(1)?.into_scalar()?;
+
+                Ok(Value::new_scalar(context.get_call_site(), lhs / rhs))
             }
         ));
     }

@@ -41,17 +41,170 @@ struct Token<'a>
 pub fn parse(input: &str) -> ExecResult<Vec<Box<Expression>>>
 {
     let mut parser = Parser::new(input)?;
+
+    parse_block_contents(&mut parser)
+}
+
+fn parse_block<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
+{
+    let open = parser.expect_ch('{')?;
+
+    let result = parse_block_contents(parser)?;
+
+    parser.expect_close(open, '}')?;
+
+    Ok(Expression::new_block(result))
+}
+
+fn parse_block_contents<'a>(parser: &mut Parser<'a>) -> ExecResult<Vec<Box<Expression>>>
+{
     let mut result = Vec::new();
 
-    while !parser.peek_kind(TokenKind::Eof)
+    while !parser.peek_kind(TokenKind::Eof) && !parser.peek_ch('}')
     {
-        result.push(parse_expression(&mut parser)?);
+        result.push(parse_expression(parser)?);
     }
 
     Ok(result)
 }
 
 fn parse_expression<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
+{
+    if parser.peek_keyword("let")
+    {
+        parser.next();
+
+        let name = parser.expect_kind(TokenKind::Identifier)?;
+
+        parser.expect_ch('=')?;
+
+        let exp = parse_expression(parser)?;
+
+        parser.expect_ch(';')?;
+
+        Ok(Expression::new_write_named_var(name.text.to_owned(), exp))
+    }
+    else if parser.peek_keyword("function")
+    {
+        // Parse function keyword
+
+        let func_token = parser.next();
+
+        // Parse optional name
+
+        let mut name_token = None;
+        let mut name_string = "<function>".to_owned();
+
+        if parser.peek_kind(TokenKind::Identifier)
+        {
+            let tok = parser.next();
+            name_string = tok.text.to_owned();
+            name_token = Some(tok);
+        }
+
+        // Parse formal arguments
+
+        let open = parser.expect_ch('(')?;
+
+        let mut formal_arguments = Vec::new();
+
+        loop
+        {
+            if parser.peek_kind(TokenKind::Identifier)
+            {
+                formal_arguments.push(parser.next().text.to_owned());
+
+                if parser.peek_ch(',')
+                {
+                    parser.next();
+                    continue;
+                }
+            }
+            parser.expect_close(open, ')')?;
+            break;
+        }
+
+        // Parse function body
+
+        let exp = parse_block(parser)?;
+
+        // Build resulting expression
+
+        let mut result = Expression::new_function(func_token.source, name_string, formal_arguments, exp);
+
+        if let Some(name_token) = name_token
+        {
+            result = Expression::new_write_named_var(name_token.text.to_owned(), result);
+        }
+
+        Ok(result)
+    }
+    else if parser.peek_keyword("if")
+    {
+        let mut conditions = Vec::new();
+        let mut alternative = None;
+
+        {
+            parser.next();
+            let open = parser.expect_ch('(')?;
+            let cond = parse_expression(parser)?;
+            parser.expect_close(open, ')')?;
+            let exp = parse_block(parser)?;
+
+            conditions.push((cond, exp));
+        }
+
+        loop
+        {
+            if parser.peek_keyword("else")
+            {
+                parser.next();
+
+                if parser.peek_keyword("if")
+                {
+                    parser.next();
+                    let open = parser.expect_ch('(')?;
+                    let cond = parse_expression(parser)?;
+                    parser.expect_close(open, ')')?;
+                    let exp = parse_block(parser)?;
+        
+                    conditions.push((cond, exp));
+
+                    continue;
+                }
+                else
+                {
+                    alternative = Some(parse_block(parser)?);
+                    break;
+                }
+            }
+            break;
+        }
+
+        Ok(Expression::new_if(conditions, alternative))
+    }
+    else // general expression
+    {
+        let mut result = parse_sum(parser)?;
+
+        while parser.peek_keyword("==") || parser.peek_keyword("!=")
+        {
+            let op = parser.next();
+
+            let sub = parse_sum(parser)?;
+
+            let actual_args = ActualArgumentExpressions::Positional(vec![result, sub]);
+
+            let function = Expression::new_read_named_var(op.source, op.text.to_owned());
+
+            result = Expression::new_call(op.source, function, actual_args);
+        }
+
+        Ok(result)
+    }
+}
+
+fn parse_sum<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
 {
     let mut result = parse_term(parser)?;
 
@@ -185,7 +338,18 @@ fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
     {
         let token = parser.next();
 
-        return Ok(Expression::new_read_named_var(token.source, token.text.to_owned()));
+        if token.text == "true"
+        {
+            return Ok(Expression::new_constant(Value::new_bool(token.source, true)));
+        }
+        else if token.text == "false"
+        {
+            return Ok(Expression::new_constant(Value::new_bool(token.source, false)));
+        }
+        else
+        {
+            return Ok(Expression::new_read_named_var(token.source, token.text.to_owned()));
+        }
     }
     else if parser.peek_ch('<')
     {
@@ -230,11 +394,11 @@ fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
     }
     else if parser.peek_ch('(')
     {
-        let _ = parser.next();
+        let open = parser.next();
 
         let result = parse_expression(parser)?;
 
-        parser.expect_ch(')')?;
+        parser.expect_close(open, ')')?;
 
         return Ok(result);
     }
@@ -271,8 +435,14 @@ impl<'a> Parser<'a>
 
     fn peek_ch(&self, ch: char) -> bool
     {
-        (self.tokens[self.index].text.chars().nth(0) == Some(ch))
+        (self.tokens[self.index].kind == TokenKind::Operator)
+            && (self.tokens[self.index].text.chars().nth(0) == Some(ch))
             && (self.tokens[self.index].text.chars().count() == 1)
+    }
+
+    fn peek_keyword(&self, keyword: &str) -> bool
+    {
+        self.tokens[self.index].text == keyword
     }
 
     fn peek_kind(&self, kind: TokenKind) -> bool
@@ -287,14 +457,27 @@ impl<'a> Parser<'a>
         return result;
     }
 
-    fn expect_ch(&mut self, ch: char) -> ExecResult<()>
+    fn expect_ch(&mut self, ch: char) -> ExecResult<Token<'a>>
     {
         if !self.peek_ch(ch)
         {
             return Err(self.err_expected(format!("\'{}\'", ch)));
         }
-        self.next();
-        Ok(())
+        Ok(self.next())
+    }
+
+    fn expect_close(&mut self, _open: Token<'a>, ch: char) -> ExecResult<Token<'a>>
+    {
+        self.expect_ch(ch)
+    }
+
+    fn expect_kind(&mut self, kind: TokenKind) -> ExecResult<Token<'a>>
+    {
+        if !self.peek_kind(kind)
+        {
+            return Err(self.err_expected(format!("{:?}", kind)));
+        }
+        Ok(self.next())
     }
 
     fn err_expected<S: Into<String>>(&mut self, msg: S) -> ExecError
@@ -419,6 +602,28 @@ fn parse_tokens<'a>(input: &'a str) -> ExecResult<Vec<Token<'a>>>
             }
             result.push(lexer.take_token(TokenKind::Identifier));
         }
+        else if ch == '='
+        {
+            lexer.accept_char();
+
+            if lexer.peek() == '='
+            {
+                lexer.accept_char();
+            }
+
+            result.push(lexer.take_token(TokenKind::Operator));
+        }
+        else if ch == '!'
+        {
+            lexer.accept_char();
+
+            if lexer.peek() == '='
+            {
+                lexer.accept_char();
+            }
+            
+            result.push(lexer.take_token(TokenKind::Operator));
+        }
         else if ch == '+' || ch == '-'
             || ch == '*' || ch == '/'
             || ch == '(' || ch == ')'
@@ -427,6 +632,7 @@ fn parse_tokens<'a>(input: &'a str) -> ExecResult<Vec<Token<'a>>>
             || ch == '.'
             || ch == ':'
             || ch == ','
+            || ch == ';'
         {
             lexer.accept_char();
             result.push(lexer.take_token(TokenKind::Operator));
