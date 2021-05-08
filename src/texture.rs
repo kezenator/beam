@@ -1,5 +1,5 @@
 use crate::color::LinearRGB;
-use crate::geom::sdf::{ConcreteSdf, Sdf};
+use crate::geom::Sdf;
 use crate::vec::Point3;
 
 #[derive(Clone)]
@@ -7,7 +7,7 @@ pub enum Texture
 {
     Solid(LinearRGB),
     Checkerboard(LinearRGB, LinearRGB),
-    Sdf(ConcreteSdf),
+    Sdf(Sdf),
 }
 
 impl Texture
@@ -22,7 +22,7 @@ impl Texture
         Texture::Checkerboard(c1.into(), c2.into())
     }
 
-    pub fn sdf(sdf: ConcreteSdf) -> Texture
+    pub fn sdf(sdf: Sdf) -> Texture
     {
         Texture::Sdf(sdf)
     }
@@ -50,7 +50,7 @@ impl Texture
             }
             Texture::Sdf(sdf) =>
             {
-                let (val, _normal) = sdf.distance_and_normal(point);
+                let val = sdf.distance(point);
 
                 if val.abs() < 0.5
                 {

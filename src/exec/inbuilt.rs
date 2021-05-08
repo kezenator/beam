@@ -2,7 +2,7 @@ use crate::color::SRGB;
 use crate::desc::CameraDescription;
 use crate::exec::{Context, Function, Value};
 use crate::geom::{Plane, Sphere};
-use crate::geom::sdf::ConcreteSdf;
+use crate::geom::Sdf;
 use crate::material::Material;
 use crate::object::Object;
 use crate::texture::Texture;
@@ -159,7 +159,7 @@ pub fn get_inbuilt_functions() -> Vec<Function>
             let center = context.get_param_named("center")?.into_vec3()?;
             let radius = context.get_param_named("radius")?.into_scalar()?;
 
-            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Sphere{ center, radius }))
+            Ok(Value::new_sdf(context.get_call_site(), Sdf::Sphere{ center, radius }))
         }
     ));
 
@@ -172,7 +172,7 @@ pub fn get_inbuilt_functions() -> Vec<Function>
             let b = context.get_param_named("b")?.into_vec3()?;
             let radius = context.get_param_named("radius")?.into_scalar()?;
 
-            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Capsule{ a, b, radius }))
+            Ok(Value::new_sdf(context.get_call_site(), Sdf::Capsule{ a, b, radius }))
         }
     ));
 
@@ -188,7 +188,7 @@ pub fn get_inbuilt_functions() -> Vec<Function>
                 .map(|i| i.into_sdf())
                 .collect::<Result<Vec<_>, _>>()?;
 
-            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Union{ members }))
+            Ok(Value::new_sdf(context.get_call_site(), Sdf::Union{ members }))
         }
     ));
 
@@ -200,7 +200,7 @@ pub fn get_inbuilt_functions() -> Vec<Function>
             let sdf = context.get_param_named("sdf")?.into_sdf()?;
             let radius = context.get_param_named("radius")?.into_scalar()?;
 
-            Ok(Value::new_sdf(context.get_call_site(), ConcreteSdf::Annular{ sdf: Box::new(sdf), radius }))
+            Ok(Value::new_sdf(context.get_call_site(), Sdf::Annular{ sdf: Box::new(sdf), radius }))
         }
     ));
 
@@ -258,6 +258,18 @@ pub fn get_inbuilt_functions() -> Vec<Function>
             let texture = context.get_param_named("texture")?.into_texture()?;
 
             Ok(Value::new_material(context.get_call_site(), Material::diffuse(texture)))
+        }
+    ));
+
+    result.push(Function::new_inbuilt(
+        "metal".to_owned(),
+        vec!["texture".to_owned(), "fuzz".to_owned()],
+        |context: &mut Context|
+        {
+            let texture = context.get_param_named("texture")?.into_texture()?;
+            let fuzz = context.get_param_named("fuzz")?.into_scalar()?;
+
+            Ok(Value::new_material(context.get_call_site(), Material::metal(texture, fuzz)))
         }
     ));
 

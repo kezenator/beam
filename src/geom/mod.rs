@@ -20,6 +20,7 @@ pub use bounds::BoundedSurface;
 pub use disc::Disc;
 pub use plane::Plane;
 pub use rectangle::{OneWayRectangle, Rectangle};
+pub use sdf::Sdf;
 pub use sphere::Sphere;
 
 pub trait Surface: CloneableSurface

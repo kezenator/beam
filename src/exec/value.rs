@@ -2,7 +2,7 @@ use crate::color::LinearRGB;
 use crate::desc::CameraDescription;
 use crate::exec::{ExecError, ExecResult, Function, SourceLocation};
 use crate::geom::Surface;
-use crate::geom::sdf::ConcreteSdf;
+use crate::geom::sdf::Sdf;
 use crate::material::Material;
 use crate::math::Scalar;
 use crate::object::Object;
@@ -23,7 +23,7 @@ pub enum ValueData
     Color(LinearRGB),
     Object(Object),
     Texture(Texture),
-    Sdf(ConcreteSdf),
+    Sdf(Sdf),
 }
 
 #[derive(Clone)]
@@ -75,7 +75,7 @@ impl Value
         Value { source, data: ValueData::Texture(texture) }
     }
 
-    pub fn new_sdf(source: SourceLocation, sdf: ConcreteSdf) -> Value
+    pub fn new_sdf(source: SourceLocation, sdf: Sdf) -> Value
     {
         Value { source, data: ValueData::Sdf(sdf) }
     }
@@ -141,6 +141,7 @@ impl Value
         match self.data
         {
             ValueData::Surface(val) => Ok(val),
+            ValueData::Sdf(val) => Ok(Box::new(val)),
             _ => Err(self.type_error("Surface")),
         }
     }
@@ -173,7 +174,7 @@ impl Value
         }
     }
 
-    pub fn into_sdf(self) -> ExecResult<ConcreteSdf>
+    pub fn into_sdf(self) -> ExecResult<Sdf>
     {
         match self.data
         {

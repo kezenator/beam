@@ -1,5 +1,5 @@
 use crate::camera::Camera;
-use crate::exec::{Context, ExecError, ExecResult, parse};
+use crate::exec::{Context, ExecResult, parse};
 use crate::math::Scalar;
 use crate::object::Object;
 use crate::render::RenderOptions;
@@ -82,11 +82,11 @@ impl SceneDescription
             },
             SceneSelection::Exec(script) =>
             {
-                let (camera, objects) = run_script(script).expect("Script execution failed");
+                let (_, objects) = run_script(script).expect("Script execution failed");
 
                 Scene::new(
                     options.sampling_mode,
-                    Camera::new(camera.location, camera.look_at, camera.up, camera.fov, (options.width as f64) / (options.height as f64)),
+                    Camera::new(self.camera.location, self.camera.look_at, self.camera.up, self.camera.fov, (options.width as f64) / (options.height as f64)),
                     vec![],
                     objects
                 )
@@ -113,7 +113,6 @@ fn run_script(script: &str) -> ExecResult<(CameraDescription, Vec<Object>)>
     for exp in expressions
     {
         let val = exp.evaluate(&mut context)?;
-        let source = val.source_location();
 
         if let Ok(cam) = val.clone().into_camera()
         {
@@ -125,7 +124,7 @@ fn run_script(script: &str) -> ExecResult<(CameraDescription, Vec<Object>)>
         }
         else
         {
-            return Err(ExecError::new(source, "Expect camera or object"));
+            // Ignore other statements
         }
     }
 

@@ -106,6 +106,11 @@ impl RayRange
         !(self.min < self.max)
     }
 
+    pub fn intersection_or_empty(&self, other: &RayRange) -> Self
+    {
+        RayRange{ min: self.min.max(other.min), max: self.max.min(other.max) }
+    }
+
     pub fn intersection(&self, other: &RayRange) -> Option<Self>
     {
         let min = self.min.max(other.min);
