@@ -114,7 +114,7 @@ impl System
 
                 let gl_window = display.gl_window();
                 let mut target = display.draw();
-                app.render_background(&mut target);
+                app.render_background(&display, &mut target);
                 platform.prepare_render(ui, gl_window.window());
                 let draw_data = imgui.render();
                 renderer

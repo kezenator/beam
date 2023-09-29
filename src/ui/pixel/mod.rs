@@ -1,7 +1,7 @@
 use glium::implement_vertex;
 use glium::program;
 use glium::uniform;
-use glium::{IndexBuffer, Program, Surface, VertexBuffer};
+use glium::{Display, IndexBuffer, Program, Surface, VertexBuffer};
 use glium::index::PrimitiveType;
 use glium::texture::Texture2d;
 use image::{RgbaImage, Rgba};
@@ -20,6 +20,8 @@ implement_vertex!(Vertex, position, tex_coords);
 /// as accessed on 2023-09-29
 pub struct PixelDisplay
 {
+    image: RgbaImage,
+    image_changed: bool,
     opengl_texture: Texture2d,
     vertex_buffer: VertexBuffer<Vertex>,
     index_buffer: IndexBuffer<u16>,
@@ -32,19 +34,21 @@ impl PixelDisplay
     {
         let display = system.display();
 
-        let mut image = RgbaImage::new(128, 128);
-        for x in 0..128
+        let width = 32;
+        let height = width;
+        let color_factor = 256 / width;
+
+        let mut image = RgbaImage::new(width, height);
+        for x in 0..width
         {
-            for y in 0..128
+            for y in 0..height
             {
-                image.put_pixel(x as u32, y as u32, Rgba([x, y, 0, 255]));
+                image.put_pixel(x as u32, y as u32, Rgba([(x * color_factor) as u8, (y * color_factor) as u8, 0, 255]));
             }
         }
+        let image_changed = false;
 
-        let image_dimensions = image.dimensions();
-        let image =
-            glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
-        let opengl_texture = glium::texture::Texture2d::new(display, image).unwrap();
+        let opengl_texture = Self::build_texture(display, &image);
 
         let vertex_buffer = {
             glium::VertexBuffer::new(
@@ -103,6 +107,8 @@ impl PixelDisplay
 
         PixelDisplay
         {
+            image,
+            image_changed,
             opengl_texture,
             vertex_buffer,
             index_buffer,
@@ -110,8 +116,19 @@ impl PixelDisplay
         }
     }
 
-    pub fn render(&mut self, frame: &mut glium::Frame)
+    pub fn set_pixel(&mut self, x: u32, y: u32, color: Rgba<u8>)
     {
+        self.image.put_pixel(x, y, color);
+        self.image_changed = true;
+    }
+
+    pub fn render(&mut self, display: &Display, frame: &mut glium::Frame)
+    {
+        if self.image_changed
+        {
+            self.opengl_texture = Self::build_texture(display, &self.image);
+        }
+
         let uniforms = uniform! {
             tex: glium::uniforms::Sampler::new(&self.opengl_texture)
                     .magnify_filter(glium::uniforms::MagnifySamplerFilter::Nearest)
@@ -127,5 +144,14 @@ impl PixelDisplay
                 &Default::default(),
             )
             .unwrap();
+    }
+
+    fn build_texture(display: &glium::Display, image: &RgbaImage) -> Texture2d
+    {
+        let image_dimensions = image.dimensions();
+        let raw_image_2d =
+            glium::texture::RawImage2d::from_raw_rgba_reversed(&image.as_raw(), image_dimensions);
+
+        glium::texture::Texture2d::new(display, raw_image_2d).unwrap()
     }
 }

@@ -20,6 +20,7 @@ use beam::vec::{Mat4, Vec3, Vec4};
 struct BeamApp
 {
     pixels: beam::ui::PixelDisplay,
+    color: [f32;3],
 }
 
 impl BeamApp
@@ -29,21 +30,30 @@ impl BeamApp
         BeamApp
         {
             pixels: beam::ui::PixelDisplay::new(system),
+            color: [0.0, 0.0, 0.0],
         }
     }
 }
 
 impl beam::ui::UiApplication for BeamApp
 {
-    fn render_background(&mut self, frame: &mut glium::Frame)
+    fn render_background(&mut self, display: &glium::Display, frame: &mut glium::Frame)
     {
-        frame.clear_color_srgb(1.0, 1.0, 1.0, 1.0);
-        self.pixels.render(frame);
+        self.pixels.render(display, frame);
     }
 
     fn render_ui(&mut self, ui: &imgui::Ui)
     {
         ui.show_demo_window(&mut true);
+
+        if ui.color_edit3("Color", &mut self.color)
+        {
+            self.pixels.set_pixel(0, 0, image::Rgba([
+                (self.color[0] * 255.0) as u8,
+                (self.color[1] * 255.0) as u8,
+                (self.color[2] * 255.0) as u8,
+                255]));
+        }
     }
 }
 
