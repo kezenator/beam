@@ -14,4 +14,5 @@ pub mod render;
 pub mod sample;
 pub mod scene;
 pub mod texture;
+pub mod ui;
 pub mod vec;

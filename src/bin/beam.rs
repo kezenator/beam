@@ -1,6 +1,8 @@
 use std::io::prelude::*;
 use std::time::Duration;
 
+use glium::Surface;
+
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Mod};
@@ -15,8 +17,44 @@ use beam::sample::Sampler;
 use beam::scene::{SamplingMode, SceneSampleStats};
 use beam::vec::{Mat4, Vec3, Vec4};
 
+struct BeamApp
+{
+    pixels: beam::ui::PixelDisplay,
+}
+
+impl BeamApp
+{
+    pub fn new(system: &beam::ui::System) -> Self
+    {
+        BeamApp
+        {
+            pixels: beam::ui::PixelDisplay::new(system),
+        }
+    }
+}
+
+impl beam::ui::UiApplication for BeamApp
+{
+    fn render_background(&mut self, frame: &mut glium::Frame)
+    {
+        frame.clear_color_srgb(1.0, 1.0, 1.0, 1.0);
+        self.pixels.render(frame);
+    }
+
+    fn render_ui(&mut self, ui: &imgui::Ui)
+    {
+        ui.show_demo_window(&mut true);
+    }
+}
+
 fn main() -> Result<(), String>
 {
+    {
+        let system = beam::ui::System::init("ImGui Test");
+        let mut app_state = BeamApp::new(&system);
+        system.main_loop(app_state);
+        panic!();
+    }
     const WIDTH: u32 = 1920;
     const HEIGHT: u32 = 1080;
 

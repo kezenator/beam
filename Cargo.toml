@@ -5,12 +5,19 @@ authors = ["Kezenator <github@kezenator.com>"]
 edition = "2018"
 
 [dependencies]
+copypasta = { version = "0.8.2" }
 crossbeam = { version = "0.8.0" }
 float-ord = { version = "0.3.0" }
+glium = { version = "0.32.1" }
+image = { version = "0.24.7" }
+imgui = { version = "0.11.0" }
+imgui-glium-renderer = { version = "0.11.0" }
+imgui-winit-support = { version = "0.11.0" }
 itertools = { version = "0.10.0" }
 notify = { version = "4.0.16" }
 num_cpus = { version = "1.13.0" }
 rand = { version = "0.8.3", features = ["small_rng"] }
-sdl2 = { version = "0.34.3", features = ["bundled", "static-link"] }
+sdl2 = { version = "0.34.5", features = ["bundled", "static-link"] }
 winapi = { version = "0.3.9", features = ["std", "shellscalingapi"] }
 vek = { version = "0.15.0" }
+
