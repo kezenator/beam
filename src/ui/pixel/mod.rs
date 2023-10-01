@@ -30,22 +30,9 @@ pub struct PixelDisplay
 
 impl PixelDisplay
 {
-    pub fn new(system: &crate::ui::System) -> Self
+    pub fn new(display: &Display, width: u32, height: u32) -> Self
     {
-        let display = system.display();
-
-        let width = 32;
-        let height = width;
-        let color_factor = 256 / width;
-
-        let mut image = RgbaImage::new(width, height);
-        for x in 0..width
-        {
-            for y in 0..height
-            {
-                image.put_pixel(x as u32, y as u32, Rgba([(x * color_factor) as u8, (y * color_factor) as u8, 0, 255]));
-            }
-        }
+        let image = RgbaImage::new(width, height);
         let image_changed = false;
 
         let opengl_texture = Self::build_texture(display, &image);
@@ -144,6 +131,20 @@ impl PixelDisplay
                 &Default::default(),
             )
             .unwrap();
+    }
+
+    pub fn dimensions(&self) -> (u32, u32)
+    {
+        self.image.dimensions()
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32)
+    {
+        if (width, height) != self.image.dimensions()
+        {
+            self.image = RgbaImage::new(width, height);
+            self.image_changed = true;
+        }
     }
 
     fn build_texture(display: &glium::Display, image: &RgbaImage) -> Texture2d

@@ -183,6 +183,11 @@ fn render_thread(options: RenderOptions, desc: SceneDescription, sender: Sender<
 
         let mut step = MAX_STEP_SIZE;
 
+        while (step > 1) && (step > state.options.width) && (step > state.options.height)
+        {
+            step /= 2;
+        }
+
         while step >= 2
         {
             if step <= state.options.max_blockiness

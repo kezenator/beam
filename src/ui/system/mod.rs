@@ -1,6 +1,6 @@
 use glium::glutin;
 use glium::glutin::event::{Event, WindowEvent};
-use glium::glutin::event_loop::{ControlFlow, EventLoop};
+use glium::glutin::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
 use glium::glutin::window::WindowBuilder;
 use glium::Display;
 use imgui::{Context, FontSource};
@@ -14,20 +14,20 @@ mod clipboard;
 // Adapted from the imgui-rs example:
 // https://github.com/imgui-rs/imgui-rs/blob/main/imgui-examples/examples/support/mod.rs
 // as accessed on 2023-09-29
-pub struct System
+pub struct System<T: 'static>
 {
-    event_loop: EventLoop<()>,
+    event_loop: EventLoop<T>,
     display: glium::Display,
     imgui: Context,
     platform: WinitPlatform,
     renderer: Renderer,
 }
 
-impl System
+impl<T: 'static> System<T>
 {
-    pub fn init(title: &str) -> System
+    pub fn init(title: &str) -> System<T>
     {
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoopBuilder::<T>::with_user_event().build();
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let builder = WindowBuilder::new()
             .with_title(title.to_owned())
@@ -77,7 +77,7 @@ impl System
     }
 
     pub fn main_loop<App>(self, mut app: App) -> !
-        where App: super::UiApplication + 'static
+        where App: super::UiApplication<T> + 'static
     {
         let System
         {
@@ -90,46 +90,61 @@ impl System
         } = self;
         let mut last_frame = Instant::now();
 
-        event_loop.run(move |event, _, control_flow| match event
+        event_loop.run(move |event, _, control_flow|
         {
-            Event::NewEvents(_) =>
+            let mut pass_on = true;
+            
+            match &event
             {
-                let now = Instant::now();
-                imgui.io_mut().update_delta_time(now - last_frame);
-                last_frame = now;
-            }
-            Event::MainEventsCleared =>
-            {
-                let gl_window = display.gl_window();
-                platform
-                    .prepare_frame(imgui.io_mut(), gl_window.window())
-                    .expect("Failed to prepare frame");
-                gl_window.window().request_redraw();
-            }
-            Event::RedrawRequested(_) =>
-            {
-                let ui = imgui.frame();
+                Event::NewEvents(_) =>
+                {
+                    let now = Instant::now();
+                    imgui.io_mut().update_delta_time(now - last_frame);
+                    last_frame = now;
+                }
+                Event::MainEventsCleared =>
+                {
+                    let gl_window = display.gl_window();
+                    platform
+                        .prepare_frame(imgui.io_mut(), gl_window.window())
+                        .expect("Failed to prepare frame");
+                    gl_window.window().request_redraw();
+                    app.idle();
+                }
+                Event::RedrawRequested(_) =>
+                {
+                    let ui = imgui.frame();
 
-                app.render_ui(ui);
+                    app.render_ui(ui);
 
-                let gl_window = display.gl_window();
-                let mut target = display.draw();
-                app.render_background(&display, &mut target);
-                platform.prepare_render(ui, gl_window.window());
-                let draw_data = imgui.render();
-                renderer
-                    .render(&mut target, draw_data)
-                    .expect("Rendering failed");
-                target.finish().expect("Failed to swap buffers");
+                    let gl_window = display.gl_window();
+                    let mut target = display.draw();
+                    app.render_background(&display, &mut target);
+                    platform.prepare_render(ui, gl_window.window());
+                    let draw_data = imgui.render();
+                    renderer
+                        .render(&mut target, draw_data)
+                        .expect("Rendering failed");
+                    target.finish().expect("Failed to swap buffers");
+                    pass_on = false;
+                }
+                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } =>
+                {
+                    *control_flow = ControlFlow::Exit
+                }
+                event =>
+                {
+                    let gl_window = display.gl_window();
+                    platform.handle_event(imgui.io_mut(), gl_window.window(), &event);
+                }
             }
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } =>
+
+            if pass_on
             {
-                *control_flow = ControlFlow::Exit
-            }
-            event =>
-            {
-                let gl_window = display.gl_window();
-                platform.handle_event(imgui.io_mut(), gl_window.window(), &event);
+                if let Some(app_cf) = app.handle_event(event)
+                {
+                    *control_flow = app_cf;
+                }
             }
         })
     }

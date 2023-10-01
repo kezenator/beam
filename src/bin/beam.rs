@@ -1,174 +1,18 @@
-use std::io::prelude::*;
-use std::time::Duration;
-
 use glium::Surface;
+use winit::event::{ElementState, Event, ModifiersState, VirtualKeyCode, WindowEvent};
 
-use sdl2::pixels::Color;
-use sdl2::event::Event;
-use sdl2::keyboard::{Keycode, Mod};
-
-use notify::{Watcher, DebouncedEvent, RecursiveMode, watcher};
-
-use beam::color::LinearRGB;
 use beam::desc::{SceneDescription, StandardScene};
 use beam::math::Scalar;
 use beam::render::{Renderer, RenderOptions, RenderIlluminationMode};
-use beam::sample::Sampler;
-use beam::scene::{SamplingMode, SceneSampleStats};
+use beam::scene::SamplingMode;
 use beam::vec::{Mat4, Vec3, Vec4};
 
-struct BeamApp
-{
-    pixels: beam::ui::PixelDisplay,
-    color: [f32;3],
-}
-
-impl BeamApp
-{
-    pub fn new(system: &beam::ui::System) -> Self
-    {
-        BeamApp
-        {
-            pixels: beam::ui::PixelDisplay::new(system),
-            color: [0.0, 0.0, 0.0],
-        }
-    }
-}
-
-impl beam::ui::UiApplication for BeamApp
-{
-    fn render_background(&mut self, display: &glium::Display, frame: &mut glium::Frame)
-    {
-        self.pixels.render(display, frame);
-    }
-
-    fn render_ui(&mut self, ui: &imgui::Ui)
-    {
-        ui.show_demo_window(&mut true);
-
-        if ui.color_edit3("Color", &mut self.color)
-        {
-            self.pixels.set_pixel(0, 0, image::Rgba([
-                (self.color[0] * 255.0) as u8,
-                (self.color[1] * 255.0) as u8,
-                (self.color[2] * 255.0) as u8,
-                255]));
-        }
-    }
-}
 
 fn main() -> Result<(), String>
 {
-    {
-        let system = beam::ui::System::init("ImGui Test");
-        let mut app_state = BeamApp::new(&system);
-        system.main_loop(app_state);
-        panic!();
-    }
-    const WIDTH: u32 = 1920;
-    const HEIGHT: u32 = 1080;
-
-    let filename = std::env::args().nth(1);
-
-    unsafe
-    {
-        const PROCESS_SYSTEM_DPI_AWARE: u32 = 1;
-        winapi::um::shellscalingapi::SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE);
-    }
-
-    let sdl_context = sdl2::init()?;
-    let video_subsystem = sdl_context.video()?;
-
-    let mut surface = sdl2::surface::Surface::new(WIDTH, HEIGHT, sdl2::pixels::PixelFormatEnum::RGBA8888)?;
-
-    let window = video_subsystem.window("Beam - Rendering...", WIDTH, HEIGHT)
-        .allow_highdpi()
-        .position_centered()
-        .build()
-        .expect("could not initialize video subsystem");
-
-    let mut canvas = window.into_canvas().build()
-        .expect("could not make a canvas");
-
-    let texture_creator = canvas.texture_creator();
-
-    let mut app_state = AppState::new(WIDTH, HEIGHT);
-
-    let (notify_tx, notify_rx) = std::sync::mpsc::channel();
-    let mut watcher = watcher(notify_tx, Duration::from_millis(250)).unwrap();
-
-    if let Some(filename) = &filename
-    {
-        app_state.load_file(&filename);
-
-        watcher.watch(&filename, RecursiveMode::Recursive).expect("Could not watch file for modifications");
-    }
-
-    let mut renderer = app_state.new_renderer();
-
-    canvas.set_draw_color(Color::RGB(0, 255, 255));
-    canvas.clear();
-    canvas.present();
-
-    let mut event_pump = sdl_context.event_pump()?;
-    'running: loop
-    {
-        for event in event_pump.poll_iter()
-        {
-            match event
-            {
-                Event::Quit {..} |
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } =>
-                {
-                    break 'running;
-                },
-                Event::KeyDown { keycode: Some(keycode), keymod, .. } =>
-                {
-                    if app_state.handle_keycode(keycode, keymod)
-                    {
-                        renderer = app_state.new_renderer();
-                    }
-                },
-                Event::MouseButtonDown { x, y, .. } =>
-                {
-                    app_state.samples_to_csv(x, y);
-                },
-                _ => {},
-            }
-        }
-
-        if let Some(update) = renderer.get_update()
-        {
-            for pixel in update.pixels
-            {
-                surface.fill_rect(
-                    sdl2::rect::Rect::new(pixel.rect.x as i32, pixel.rect.y as i32, pixel.rect.width, pixel.rect.height),
-                    sdl2::pixels::Color::from(pixel.color.to_srgb().to_u8_rgba_tuple()))?;
-            }
-
-            canvas.window_mut().set_title(&format!("Beam - {}", update.progress)).expect("Could not set window title");
-        }
-
-        while let Ok(watch_event) = notify_rx.try_recv()
-        {
-            if let DebouncedEvent::Write(_) = watch_event
-            {
-                if let Some(filename) = &filename
-                {
-                    app_state.load_file(&filename);
-                    renderer = app_state.new_renderer();
-                }
-            }
-        }
-
-        let texture = surface.as_texture(&texture_creator).unwrap();
-        canvas.copy(&texture, None, None)?;
-        canvas.present();
-
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-    }
-
-    Ok(())
+    let system = beam::ui::System::init("Beam");
+    let app_state = AppState::new(&system, 128, 128);
+    system.main_loop(app_state);
 }
 
 struct AppState
@@ -176,17 +20,33 @@ struct AppState
     filename: Option<String>,
     options: RenderOptions,
     desc: SceneDescription,
+    renderer: Renderer,
+    pixels: beam::ui::PixelDisplay,
+    progress_str: String,
+    keyboard_modifiers: winit::event::ModifiersState,
 }
 
 impl AppState
 {
-    pub fn new(width: u32, height: u32) -> Self
+    pub fn new(system: &beam::ui::System<()>, width: u32, height: u32) -> Self
     {
+        let filename = None;
+        let options = RenderOptions::new(width, height);
+        let desc = SceneDescription::new_standard(StandardScene::Cornell);
+        let renderer = Renderer::new(options.clone(), desc.clone());
+        let pixels = beam::ui::PixelDisplay::new(system.display(), width, height);
+        let progress_str = "Starting...".into();
+        let keyboard_modifiers = ModifiersState::empty();
+
         AppState
         {
-            filename: None,
-            options: RenderOptions::new(width, height),
-            desc: SceneDescription::new_standard(StandardScene::Cornell),
+            filename,
+            options,
+            desc,
+            renderer,
+            pixels,
+            progress_str,
+            keyboard_modifiers
         }
     }
 
@@ -225,34 +85,33 @@ impl AppState
         self.desc = SceneDescription::new_standard(StandardScene::Cornell);
     }
 
-    pub fn handle_keycode(&mut self, keycode: Keycode, keymod: Mod) -> bool
+    pub fn handle_keycode(&mut self, keycode: VirtualKeyCode, keymod: ModifiersState) -> bool
     {
-        let ctrl = keymod.contains(sdl2::keyboard::Mod::LCTRLMOD)
-            || keymod.contains(sdl2::keyboard::Mod::RCTRLMOD);
+        let ctrl = keymod.ctrl();
 
         let handled = match keycode
         {
-            Keycode::Num1 =>
+            VirtualKeyCode::Key1 =>
             {
                 self.desc = SceneDescription::new_standard(StandardScene::BeamExample);
                 true
             },
-            Keycode::Num2 =>
+            VirtualKeyCode::Key2 =>
             {
                 self.desc = SceneDescription::new_standard(StandardScene::Cornell);
                 true
             },
-            Keycode::Num3 =>
+            VirtualKeyCode::Key3 =>
             {
                 self.desc = SceneDescription::new_standard(StandardScene::Furnace);
                 true
             },
-            Keycode::Num4 =>
+            VirtualKeyCode::Key4 =>
             {
                 self.desc = SceneDescription::new_standard(StandardScene::Veach);
                 true
             },
-            Keycode::Num0 =>
+            VirtualKeyCode::Key0 =>
             {
                 if let Some(filename) = self.filename.clone()
                 {
@@ -264,36 +123,36 @@ impl AppState
                     false
                 }
             },
-            Keycode::F1 =>
+            VirtualKeyCode::F1 =>
             {
                 self.options.illumination_mode = RenderIlluminationMode::Global;
                 self.options.sampling_mode = SamplingMode::BsdfAndLights;
                 true
             }
-            Keycode::F2 =>
+            VirtualKeyCode::F2 =>
             {
                 self.options.illumination_mode = RenderIlluminationMode::Global;
                 self.options.sampling_mode = SamplingMode::LightsOnly;
                 true
             }
-            Keycode::F3 =>
+            VirtualKeyCode::F3 =>
             {
                 self.options.illumination_mode = RenderIlluminationMode::Global;
                 self.options.sampling_mode = SamplingMode::BsdfOnly;
                 true
             }
-            Keycode::F4 =>
+            VirtualKeyCode::F4 =>
             {
                 self.options.illumination_mode = RenderIlluminationMode::Global;
                 self.options.sampling_mode = SamplingMode::Uniform;
                 true
             }
-            Keycode::F5 =>
+            VirtualKeyCode::F5 =>
             {
                 self.options.illumination_mode = RenderIlluminationMode::Local;
                 true
             }
-            Keycode::C =>
+            VirtualKeyCode::C =>
             {
                 println!("Camera Location: {:?}", self.desc.camera.location);
                 println!("Camera Look-at:  {:?}", self.desc.camera.look_at);
@@ -301,7 +160,7 @@ impl AppState
                 println!("Camera FOV:      {:?}", self.desc.camera.fov);
                 false
             },
-            Keycode::L =>
+            VirtualKeyCode::L =>
             {
                 self.options.illumination_mode = match self.options.illumination_mode
                 {
@@ -311,7 +170,7 @@ impl AppState
                 self.options.sampling_mode = SamplingMode::BsdfAndLights;
                 true
             },
-            Keycode::Left =>
+            VirtualKeyCode::Left =>
             {
                 if ctrl
                 {
@@ -323,7 +182,7 @@ impl AppState
                 }
                 true
             },
-            Keycode::Right =>
+            VirtualKeyCode::Right =>
             {
                 if ctrl
                 {
@@ -335,7 +194,7 @@ impl AppState
                 }
                 true
             },
-            Keycode::Up =>
+            VirtualKeyCode::Up =>
             {
                 if ctrl
                 {
@@ -347,7 +206,7 @@ impl AppState
                 }
                 true
             },
-            Keycode::Down =>
+            VirtualKeyCode::Down =>
             {
                 if ctrl
                 {
@@ -359,12 +218,12 @@ impl AppState
                 }
                 true
             },
-            Keycode::KpPlus =>
+            VirtualKeyCode::NumpadAdd =>
             {
                 self.desc.camera.fov = (self.desc.camera.fov - 5.0).clamp(1.0, 175.0);
                 true
             },
-            Keycode::KpMinus =>
+            VirtualKeyCode::NumpadSubtract =>
             {
                 self.desc.camera.fov = (self.desc.camera.fov + 5.0).clamp(1.0, 175.0);
                 true
@@ -426,35 +285,83 @@ impl AppState
 
         self.desc.camera.location = new_dir + self.desc.camera.look_at;
     }
+}
 
-    fn samples_to_csv(&self, x: i32, y: i32)
+impl beam::ui::UiApplication<()> for AppState
+{
+    fn handle_event(&mut self, event: winit::event::Event<()>) -> Option<winit::event_loop::ControlFlow>
     {
-        const NUM_SAMPLES: usize = 32;
-
-        let scene = self.desc.build_scene(&self.options);
-        let mut sampler = Sampler::new();
-        let mut stats = SceneSampleStats::new();
-
-        let mut color = LinearRGB::black();
-        let mut csv = "R,G,B,Probability\n".to_owned();
-        
-        for _ in 0..NUM_SAMPLES
+        match event
         {
-            let u = ((x as Scalar) + sampler.uniform_scalar_unit()) / (self.options.width as Scalar);
-            let v = ((y as Scalar) + sampler.uniform_scalar_unit()) / (self.options.height as Scalar);
-
-            let (sample, probability) = scene.path_trace_global_lighting(u, v, &mut sampler, &mut stats);
-
-            color = color + sample;
-
-            let line: String = format!("{},{},{},{}\n", sample.r, sample.g, sample.b, probability);
-            csv += &line;
+            Event::WindowEvent{ event, .. } =>
+            {
+                match event
+                {
+                    WindowEvent::ModifiersChanged(modifiers) =>
+                    {
+                        self.keyboard_modifiers = modifiers;
+                    },
+                    WindowEvent::KeyboardInput { input, .. } =>
+                    {
+                        if input.state == ElementState::Pressed
+                        {
+                            if let Some(virtual_keycode) = input.virtual_keycode
+                            {
+                                if self.handle_keycode(virtual_keycode, self.keyboard_modifiers)
+                                {
+                                    self.renderer = self.new_renderer();
+                                }
+                            }
+                        }
+                    },
+                    _ => {},
+                }
+            },
+            _ => {},
         }
 
-        let mut file = std::fs::File::create("samples.csv").expect("Could not write CSV file");
-        file.write_all(csv.as_bytes()).expect("Could not write CSV file");
+        None
+    }
 
-        println!("Wrote \"samples.csv\"");
-        println!("Result = {:?}", color.divided_by_scalar(NUM_SAMPLES as Scalar));
+    fn render_background(&mut self, display: &glium::Display, frame: &mut glium::Frame)
+    {
+        if frame.get_dimensions() != self.pixels.dimensions()
+        {
+            let (width, height) = frame.get_dimensions();
+            self.pixels.resize(width, height);
+            self.options.width = width;
+            self.options.height = height;
+            self.renderer = self.new_renderer();
+        }
+        self.pixels.render(display, frame);
+    }
+
+    fn render_ui(&mut self, ui: &imgui::Ui)
+    {
+        if let Some(_) = ui.window("Beam").begin()
+        {
+            ui.text(&self.progress_str);
+        }
+    }
+
+    fn idle(&mut self)
+    {
+        if let Some(update) = self.renderer.get_update()
+        {
+            for pixel in update.pixels
+            {
+                self.pixels.set_pixel(
+                    pixel.rect.x,
+                    pixel.rect.y,
+                    image::Rgba([
+                        (pixel.color.r * 255.0) as u8,
+                        (pixel.color.g * 255.0) as u8,
+                        (pixel.color.b * 255.0) as u8,
+                        255,
+                    ]));
+            }
+
+            self.progress_str = format!("{}", update.progress);
+        }
     }
 }
