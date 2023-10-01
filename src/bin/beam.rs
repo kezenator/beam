@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use glium::Surface;
 use winit::event::{ElementState, Event, ModifiersState, VirtualKeyCode, WindowEvent};
 
@@ -22,7 +24,7 @@ struct AppState
     desc: SceneDescription,
     renderer: Renderer,
     pixels: beam::ui::PixelDisplay,
-    progress_str: String,
+    progress: Option<beam::render::RenderProgress>,
     keyboard_modifiers: winit::event::ModifiersState,
 }
 
@@ -35,7 +37,7 @@ impl AppState
         let desc = SceneDescription::new_standard(StandardScene::Cornell);
         let renderer = Renderer::new(options.clone(), desc.clone());
         let pixels = beam::ui::PixelDisplay::new(system.display(), width, height);
-        let progress_str = "Starting...".into();
+        let progress = None;
         let keyboard_modifiers = ModifiersState::empty();
 
         AppState
@@ -45,7 +47,7 @@ impl AppState
             desc,
             renderer,
             pixels,
-            progress_str,
+            progress,
             keyboard_modifiers
         }
     }
@@ -338,9 +340,12 @@ impl beam::ui::UiApplication<()> for AppState
 
     fn render_ui(&mut self, ui: &imgui::Ui)
     {
-        if let Some(_) = ui.window("Beam").begin()
+        if let Some(progress) = &self.progress
         {
-            ui.text(&self.progress_str);
+            if let Some(_) = ui.window("Progress").begin()
+            {
+                render_progress(ui, progress)
+            }
         }
     }
 
@@ -361,7 +366,97 @@ impl beam::ui::UiApplication<()> for AppState
                     ]));
             }
 
-            self.progress_str = format!("{}", update.progress);
+            self.progress = Some(update.progress);
         }
+    }
+}
+
+fn render_progress(ui: &imgui::Ui, progress: &beam::render::RenderProgress)
+{
+    ui.text(&progress.actions);
+    ui.text("Total Duration:");
+    ui.text(duration_to_str(&progress.total_duration));
+    ui.text("Avg Sample Duration:");
+    ui.text(duration_to_str(&progress.avg_duration_per_sample));
+    ui.text("Total samples:");
+    ui.text(progress.stats.num_samples.to_string());
+    ui.text("Total  Rays:");
+    ui.text(progress.stats.num_rays.to_string());
+    ui.text("Max Rays:");
+    ui.text(progress.stats.max_rays.to_string());
+
+    if let Some(_) = ui.begin_table("stats", 3)
+    {
+        ui.table_next_row_with_flags(imgui::TableRowFlags::HEADERS);
+        ui.table_next_column();
+        ui.text("Termination");
+        ui.table_next_column();
+        ui.text("Count");
+        ui.table_next_column();
+        ui.text("Percent");
+
+        ui.table_next_row();
+        ui.table_next_column();
+        ui.text("Max Rays");
+        ui.table_next_column();
+        ui.text(progress.stats.stopped_due_to_max_rays.to_string());
+        ui.table_next_column();
+        ui.text(percent_to_str(progress.stats.stopped_due_to_max_rays, progress.stats.num_samples));
+
+        ui.table_next_row();
+        ui.table_next_column();
+        ui.text("Min Color");
+        ui.table_next_column();
+        ui.text(progress.stats.stopped_due_to_min_atten.to_string());
+        ui.table_next_column();
+        ui.text(percent_to_str(progress.stats.stopped_due_to_min_atten, progress.stats.num_samples));
+
+        ui.table_next_row();
+        ui.table_next_column();
+        ui.text("Min Probability");
+        ui.table_next_column();
+        ui.text(progress.stats.stopped_due_to_min_prob.to_string());
+        ui.table_next_column();
+        ui.text(percent_to_str(progress.stats.stopped_due_to_min_prob, progress.stats.num_samples));
+    }
+}
+
+fn percent_to_str(num: u64, den: u64) -> String
+{
+    let percent = 100.0 * (num as f64) / (den as f64);
+    format!("{:.3}%", percent)
+}
+
+fn duration_to_str(duration: &Duration) -> String
+{
+    let secs = duration.as_secs_f64();
+
+    if secs > 10.0
+    {
+        let secs = secs as u64;
+        if secs > 3600
+        {
+            format!("{}:{:02}:{:02}", secs / 3600, secs % 3600 / 60, secs % 60)
+        }
+        else if secs > 60
+        {
+            format!("{}:{:02}", secs / 60, secs % 60)
+        }
+        else
+        {
+            format!("{} s", secs)
+        }
+    }
+    else if secs > 1.0
+    {
+        format!("{:.3} s", duration.as_secs_f64())
+    }
+    else if secs > 0.001
+    {
+        format!("{:.3} ms", duration.as_secs_f64() * 1000.0)
+    }
+    else
+    {
+        format!("{:.3} us", duration.as_secs_f64() * 1000000.0)
     }
 }

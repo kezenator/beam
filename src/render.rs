@@ -6,7 +6,6 @@ use crate::sample::Sampler;
 
 use std::time::{Instant, Duration};
 use std::thread::JoinHandle;
-use crossbeam::channel::{Sender};
 use itertools::Itertools;
 use rand::{thread_rng, seq::SliceRandom};
 
@@ -54,9 +53,17 @@ pub struct PixelUpdate
     pub color: color::LinearRGB
 }
 
+pub struct RenderProgress
+{
+    pub actions: String,
+    pub total_duration: Duration,
+    pub avg_duration_per_sample: Duration,
+    pub stats: SceneSampleStats,
+}
+
 pub struct RenderUpdate
 {
-    pub progress: String,
+    pub progress: RenderProgress,
     pub complete: bool,
     pub pixels: Vec<PixelUpdate>,
 }
@@ -233,7 +240,13 @@ fn render_thread(options: RenderOptions, desc: SceneDescription, sender: Sender<
 
     let final_update = RenderUpdate
     {
-        progress: format!("Completed: {}", stats_to_string(&state)),
+        progress: RenderProgress
+            {
+                actions: "Complete".to_owned(),
+                total_duration: state.total_duration,
+                avg_duration_per_sample: time_per_sample(&state.total_duration, &state.stats.num_samples),
+                stats: state.stats.clone(),
+            },
         complete: true,
         pixels: Vec::new(),
     };
@@ -374,7 +387,13 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
                 100.0 * (collected_chunks as f64) / (num_chunks as f64))
         };
 
-        let progress = format!("{}: {}", actions, stats_to_string(state));
+        let progress = RenderProgress
+        {
+            actions,
+            total_duration: state.total_duration,
+            avg_duration_per_sample: time_per_sample(&state.total_duration, &state.stats.num_samples),
+            stats: state.stats.clone(),
+        };
 
         let complete = false;
 
@@ -406,25 +425,16 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
     true
 }
 
-fn stats_to_string(state: &RenderState) -> String
+fn time_per_sample(duration: &Duration, samples: &u64) -> Duration
 {
-    format!(" [{}/sample, {}]",
-        time_per_sample(&state.total_duration, &state.stats.num_samples),
-        state.stats.to_short_debug_string())
-}
-
-fn time_per_sample(duration: &Duration, samples: &u64) -> String
-{
-    let tps = if *samples == 0
+    if *samples == 0
     {
-        0.0
+        Duration::ZERO
     }
     else
     {
-        duration.as_secs_f64() / (*samples as f64)
-    };
-
-    format!("{:.2} us", tps * 1000000.0)
+        Duration::from_secs_f64(duration.as_secs_f64() / (*samples as f64))
+    }
 }
 
 fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_samples_per_pixel: usize, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
