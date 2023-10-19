@@ -3,13 +3,14 @@ use std::collections::HashSet;
 use crate::geom::Surface;
 use crate::indexed::{IndexedValue, AnyIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
-use crate::vec::{Point3, Vec3};
+use crate::vec::{Dir3, Point3, Vec3};
 use crate::math::Scalar;
 
 #[derive(Clone, Debug)]
 pub enum Geom
 {
     Sphere{center: Point3, radius: Scalar},
+    Plane{point: Point3, normal: Dir3},
 }
 
 impl Geom
@@ -19,6 +20,7 @@ impl Geom
         match self
         {
             Geom::Sphere{center, radius} => Box::new(crate::geom::Sphere::new(*center, *radius)),
+            Geom::Plane{point, normal} => Box::new(crate::geom::Plane::new(*point, *normal)),
         }
     }
 
@@ -27,6 +29,7 @@ impl Geom
         match self
         {
             Geom::Sphere{..} => "Sphere",
+            Geom::Plane{..} => "Plane",
         }
     }
 
@@ -38,6 +41,7 @@ impl Geom
         {
             for entry in [
                 Geom::Sphere{center: Point3::new(0.0, 0.0, 0.0), radius: 0.0},
+                Geom::Plane{point: Point3::new(0.0, 0.0, 0.0), normal: Dir3::new(0.0, 1.0, 0.0)},
             ]
             {
                 let entry_tag = entry.ui_tag();
@@ -91,6 +95,12 @@ impl UiDisplay for Geom
                 ui.display_vec3("Center", center);
                 ui.display_float("Radius", radius);
             },
+            Geom::Plane{point, normal} =>
+            {
+                ui.imgui.label_text(label, "Plane");
+                ui.display_vec3("Point", point);
+                ui.display_vec3("Normal", normal);
+            },
         }
     }
 }
@@ -108,6 +118,11 @@ impl UiEdit for Geom
             {
                 result |= ui.edit_vec3("Center", center);
                 result |= ui.edit_float("Radius", radius);
+            },
+            Geom::Plane{point, normal} =>
+            {
+                ui.edit_vec3("Point", point);
+                ui.edit_vec3("Normal", normal);
             },
         }
 

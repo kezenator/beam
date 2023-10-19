@@ -1,7 +1,6 @@
 use std::{rc::Rc, any::Any};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use itertools::TakeWhileRef;
 
 use crate::exec::{ActualArguments, ExecError, ExecResult, SourceLocation, Value};
 
@@ -15,25 +14,28 @@ impl Context
 {
     pub fn new() -> Context
     {
-        let mut frame = Frame::new();
-
-        for func in crate::exec::inbuilt::get_inbuilt_functions()
+        let mut result = Context
         {
-            frame.named.insert(func.get_name().to_owned(), Value::new_function(func));
-        }
+            frame: Rc::new(RefCell::new(Frame::new()))
+        };
 
-        Context
-        {
-            frame: Rc::new(RefCell::new(frame)),
-        }
+        crate::exec::inbuilt::add_inbuilt_functions(&mut result);
+
+        result
     }
 
-    pub fn new_root_frame(call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Context
+    pub fn new_with_state<AppState>(app_state: AppState) -> Context
+    where
+        AppState: Any
     {
-        Context
+        let mut result = Context
         {
-            frame: Rc::new(RefCell::new(Frame::new_frame(None, call_site, formal_arguments, actual_arguments))),
-        }
+            frame: Rc::new(RefCell::new(Frame::new_with_state(app_state)))
+        };
+
+        crate::exec::inbuilt::add_inbuilt_functions(&mut result);
+
+        result
     }
 
     pub fn get_call_site(&self) -> SourceLocation

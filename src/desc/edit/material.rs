@@ -1,14 +1,17 @@
 use std::collections::HashSet;
 
 use crate::indexed::{Index, IndexedValue, AnyIndex, TextureIndex};
+use crate::math::Scalar;
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use super::Scene;
 
 #[derive(Clone, Debug)]
 pub enum Material
 {
-    Phong{ color: TextureIndex },
-    Emit{ color: TextureIndex },
+    Dielectric { ior: Scalar },
+    Diffuse{ texture: TextureIndex },
+    Emit{ texture: TextureIndex },
+    Metal{ texture: TextureIndex, fuzz: Scalar },
 }
 
 impl Material
@@ -17,8 +20,10 @@ impl Material
     {
         match self
         {
-            Material::Phong{color} => crate::material::Material::Diffuse(scene.build_texture(*color)),
-            Material::Emit{color} => crate::material::Material::Emit(scene.build_texture(*color)),
+            Material::Dielectric{ior} => crate::material::Material::Dielectric(*ior),
+            Material::Diffuse{texture} => crate::material::Material::Diffuse(scene.build_texture(*texture)),
+            Material::Emit{texture} => crate::material::Material::Emit(scene.build_texture(*texture)),
+            Material::Metal{texture, fuzz} => crate::material::Material::Metal(scene.build_texture(*texture), *fuzz),
         }
     }
 
@@ -26,8 +31,10 @@ impl Material
     {
         match self
         {
-            Material::Phong{..} => "Phong",
+            Material::Dielectric{..} => "Dielectric",
+            Material::Diffuse{..} => "Diffuse",
             Material::Emit{..} => "Emit",
+            Material::Metal{..} => "Metal",
         }
     }
 
@@ -38,8 +45,10 @@ impl Material
         if let Some(_) = ui.imgui.begin_combo(label, cur_tag)
         {
             for entry in [
-                Material::Phong{ color: TextureIndex::from_usize(0) },
-                Material::Emit{ color: TextureIndex::from_usize(0) },
+                Material::Dielectric{ ior: 1.5 },
+                Material::Diffuse{ texture: TextureIndex::from_usize(0) },
+                Material::Emit{ texture: TextureIndex::from_usize(0) },
+                Material::Metal{ texture: TextureIndex::from_usize(0), fuzz: 0.0 },
             ]
             {
                 let entry_tag = entry.ui_tag();
@@ -65,7 +74,7 @@ impl Default for Material
 {
     fn default() -> Self
     {
-        Material::Phong{ color: TextureIndex::from_usize(0) }
+        Material::Diffuse{ texture: TextureIndex::from_usize(0) }
     }
 }
 
@@ -87,15 +96,26 @@ impl UiDisplay for Material
     {
         match self
         {
-            Material::Phong{ color } =>
+            Material::Dielectric{ ior } =>
             {
-                ui.imgui.label_text(label, "Phong");
-                ui.imgui.label_text("Color", color.to_usize().to_string());
+                ui.imgui.label_text(label, "Dielectric");
+                ui.display_float("IOR", ior);
             },
-            Material::Emit{ color } =>
+            Material::Diffuse{ texture } =>
+            {
+                ui.imgui.label_text(label, "Diffuse");
+                ui.imgui.label_text("Texture", texture.to_usize().to_string());
+            },
+            Material::Emit{ texture } =>
             {
                 ui.imgui.label_text(label, "Emit");
-                ui.imgui.label_text("Color", color.to_usize().to_string());
+                ui.imgui.label_text("Texture", texture.to_usize().to_string());
+            },
+            Material::Metal{ texture, fuzz } =>
+            {
+                ui.imgui.label_text(label, "Metal");
+                ui.imgui.label_text("Texture", texture.to_usize().to_string());
+                ui.display_float("Fuzz", fuzz);
             },
         }
     }
@@ -110,13 +130,22 @@ impl UiEdit for Material
 
         match self
         {
-            Material::Phong{ color } =>
+            Material::Dielectric{ ior } =>
             {
-                result |= color.ui_edit(ui, "Color");
+                result |= ui.edit_float("IOR", ior);
             },
-            Material::Emit{ color } =>
+            Material::Diffuse{ texture } =>
             {
-                result |= color.ui_edit(ui, "Color");
+                result |= texture.ui_edit(ui, "Texture");
+            },
+            Material::Emit{ texture } =>
+            {
+                result |= texture.ui_edit(ui, "Texture");
+            },
+            Material::Metal{ texture, fuzz } =>
+            {
+                result |= texture.ui_edit(ui, "Texture");
+                result |= ui.edit_float("Fuzz", fuzz);
             },
         }
 

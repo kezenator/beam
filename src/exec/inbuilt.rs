@@ -1,21 +1,18 @@
 use crate::color::SRGB;
-use crate::desc::CameraDescription;
+use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture};
 use crate::exec::{Context, Function, Value};
-use crate::geom::{Plane, Sphere};
 use crate::geom::Sdf;
-use crate::material::Material;
-use crate::object::Object;
-use crate::texture::Texture;
 
-pub fn get_inbuilt_functions() -> Vec<Function>
+pub fn add_inbuilt_functions(root_context: &mut Context)
 {
-    let mut result = Vec::new();
+    let mut funcs = Vec::new();
 
     for name in ["==", "eq"].iter()
     {
-        result.push(Function::new_inbuilt(
+        funcs.push(Function::new_inbuilt(
             name.to_string(),
             vec!["lhs".to_owned(), "rhs".to_owned()],
+            root_context,
             |context: &mut Context|
             {
                 let lhs = context.get_param_positional(0)?.into_scalar()?;
@@ -28,9 +25,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
 
     for name in ["!=", "neq"].iter()
     {
-        result.push(Function::new_inbuilt(
+        funcs.push(Function::new_inbuilt(
             name.to_string(),
             vec!["lhs".to_owned(), "rhs".to_owned()],
+            root_context,
             |context: &mut Context|
             {
                 let lhs = context.get_param_positional(0)?.into_scalar()?;
@@ -41,9 +39,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         ));
     }
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "neg".to_string(),
         vec!["val".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let val = context.get_param_positional(0)?.into_scalar()?;
@@ -54,9 +53,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
 
     for name in ["+", "add"].iter()
     {
-        result.push(Function::new_inbuilt(
+        funcs.push(Function::new_inbuilt(
             name.to_string(),
             vec!["lhs".to_owned(), "rhs".to_owned()],
+            root_context,
             |context: &mut Context|
             {
                 let lhs = context.get_param_positional(0)?.into_scalar()?;
@@ -69,9 +69,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
 
     for name in ["-", "sub"].iter()
     {
-        result.push(Function::new_inbuilt(
+        funcs.push(Function::new_inbuilt(
             name.to_string(),
             vec!["lhs".to_owned(), "rhs".to_owned()],
+            root_context,
             |context: &mut Context|
             {
                 let lhs = context.get_param_positional(0)?.into_scalar()?;
@@ -84,9 +85,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
 
     for name in ["*", "mul"].iter()
     {
-        result.push(Function::new_inbuilt(
+        funcs.push(Function::new_inbuilt(
             name.to_string(),
             vec!["lhs".to_owned(), "rhs".to_owned()],
+            root_context,
             |context: &mut Context|
             {
                 let lhs = context.get_param_positional(0)?.into_scalar()?;
@@ -99,9 +101,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
 
     for name in ["/", "div"].iter()
     {
-        result.push(Function::new_inbuilt(
+        funcs.push(Function::new_inbuilt(
             name.to_string(),
             vec!["lhs".to_owned(), "rhs".to_owned()],
+            root_context,
             |context: &mut Context|
             {
                 let lhs = context.get_param_positional(0)?.into_scalar()?;
@@ -112,9 +115,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         ));
     }
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "rgb".to_owned(),
         vec!["r".to_owned(), "g".to_owned(), "b".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let r = context.get_param_named("r")?.into_scalar()?;
@@ -125,9 +129,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "camera".to_owned(),
         vec!["location".to_owned(), "look_at".to_owned(), "up".to_owned(), "fov".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let location = context.get_param_named("location")?.into_vec3()?;
@@ -135,25 +140,34 @@ pub fn get_inbuilt_functions() -> Vec<Function>
             let up = context.get_param_named("up")?.into_vec3()?;
             let fov = context.get_param_named("fov")?.into_scalar()?;
 
-            Ok(Value::new_camera(context.get_call_site(), CameraDescription { location, look_at, up, fov }))
+            let camera = Camera { location, look_at, up, fov };
+
+            context.with_app_state::<Scene, _, _>(|scene| { scene.camera = camera.clone(); Ok(()) })?;
+
+            Ok(Value::new_camera(context.get_call_site(), camera))
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "sphere".to_owned(),
         vec!["center".to_owned(), "radius".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let center = context.get_param_named("center")?.into_vec3()?;
             let radius = context.get_param_named("radius")?.into_scalar()?;
 
-            Ok(Value::new_surface(context.get_call_site(), Box::new(Sphere::new(center, radius))))
+            let geom = Geom::Sphere{ center, radius };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+
+            Ok(Value::new_geom(context.get_call_site(), index))
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "sdf_sphere".to_owned(),
         vec!["center".to_owned(), "radius".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let center = context.get_param_named("center")?.into_vec3()?;
@@ -163,9 +177,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "sdf_capsule".to_owned(),
         vec!["a".to_owned(), "b".to_owned(), "radius".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let a = context.get_param_named("a")?.into_vec3()?;
@@ -176,9 +191,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "sdf_union".to_owned(),
         vec![],
+        root_context,
         |context: &mut Context|
         {
             let members = context.get_param_all_positional();
@@ -192,9 +208,10 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "sdf_annular".to_owned(),
         vec!["sdf".to_owned(), "radius".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let sdf = context.get_param_named("sdf")?.into_sdf()?;
@@ -204,86 +221,124 @@ pub fn get_inbuilt_functions() -> Vec<Function>
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "plane".to_owned(),
         vec!["point".to_owned(), "normal".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let point = context.get_param_named("point")?.into_vec3()?;
             let normal = context.get_param_named("normal")?.into_vec3()?;
+            let geom = Geom::Plane{ point, normal };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
 
-            Ok(Value::new_surface(context.get_call_site(), Box::new(Plane::new(point, normal))))
+            Ok(Value::new_geom(context.get_call_site(), index))
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "texture_checkerboard".to_owned(),
         vec!["a".to_owned(), "b".to_owned()],
+        root_context,
         |context: &mut Context|
         {
             let a = context.get_param_named("a")?.into_color()?;
             let b = context.get_param_named("b")?.into_color()?;
 
-            Ok(Value::new_texture(context.get_call_site(), Texture::checkerboard(a, b)))
+            let texture = Texture::Checkerboard(a, b);
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.textures.push(texture)))?;
+
+            Ok(Value::new_texture(context.get_call_site(), index))
         }
     ));
 
-    result.push(Function::new_inbuilt(
-        "texture_sdf".to_owned(),
-        vec!["sdf".to_owned()],
+    // funcs.push(Function::new_inbuilt(
+    //     "texture_sdf".to_owned(),
+    //     vec!["sdf".to_owned()],
+    //     root_context,
+    //     |context: &mut Context|
+    //     {
+    //         let sdf = context.get_param_named("sdf")?.into_sdf()?;
+
+    //         Ok(Value::new_texture(context.get_call_site(), Texture::sdf(sdf)))
+    //     }
+    // ));
+
+    funcs.push(Function::new_inbuilt(
+        "dielectric".to_owned(),
+        vec!["ior".to_owned()],
+        root_context,
         |context: &mut Context|
         {
-            let sdf = context.get_param_named("sdf")?.into_sdf()?;
+            let ior = context.get_param_named("ior")?.into_scalar()?;
+            let material = Material::Dielectric{ ior };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
 
-            Ok(Value::new_texture(context.get_call_site(), Texture::sdf(sdf)))
+            Ok(Value::new_material(context.get_call_site(), index))
         }
     ));
 
-    result.push(Function::new_inbuilt(
-        "emit".to_owned(),
-        vec!["texture".to_owned()],
-        |context: &mut Context|
-        {
-            let texture = context.get_param_named("texture")?.into_texture()?;
-
-            Ok(Value::new_material(context.get_call_site(), Material::emit(texture)))
-        }
-    ));
-
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "diffuse".to_owned(),
         vec!["texture".to_owned()],
+        root_context,
         |context: &mut Context|
         {
-            let texture = context.get_param_named("texture")?.into_texture()?;
+            let texture = context.get_param_named("texture")?.into_texture(context)?;
+            let material = Material::Diffuse{ texture };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
 
-            Ok(Value::new_material(context.get_call_site(), Material::diffuse(texture)))
+            Ok(Value::new_material(context.get_call_site(), index))
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
+        "emit".to_owned(),
+        vec!["texture".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let texture = context.get_param_named("texture")?.into_texture(context)?;
+            let material = Material::Emit{ texture };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
+
+            Ok(Value::new_material(context.get_call_site(), index))
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
         "metal".to_owned(),
         vec!["texture".to_owned(), "fuzz".to_owned()],
+        root_context,
         |context: &mut Context|
         {
-            let texture = context.get_param_named("texture")?.into_texture()?;
+            let texture = context.get_param_named("texture")?.into_texture(context)?;
             let fuzz = context.get_param_named("fuzz")?.into_scalar()?;
+            let material = Material::Metal{ texture, fuzz };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
 
-            Ok(Value::new_material(context.get_call_site(), Material::metal(texture, fuzz)))
+            Ok(Value::new_material(context.get_call_site(), index))
         }
     ));
 
-    result.push(Function::new_inbuilt(
+    funcs.push(Function::new_inbuilt(
         "object".to_owned(),
-        vec!["surface".to_owned(), "material".to_owned()],
+        vec!["geometry".to_owned(), "material".to_owned()],
+        root_context,
         |context: &mut Context|
         {
-            let surface = context.get_param_named("surface")?.into_surface()?;
+            let geom = context.get_param_named("geometry")?.into_geom()?;
             let material = context.get_param_named("material")?.into_material()?;
+            let object = Object{ geom, material };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.objects.push(object)))?;
 
-            Ok(Value::new_object(context.get_call_site(), Object::new_boxed(surface, material)))
+            Ok(Value::new_object(context.get_call_site(), index))
         }
     ));
 
-    result
+    for func in funcs
+    {
+        let name = func.get_name().to_owned();
+        root_context.set_var_named(&name, Value::new_function(func));
+    }
 }

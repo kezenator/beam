@@ -8,12 +8,12 @@ camera
 
 object
 {
-    surface: sphere(<0.0, 0.0, 0.0>, 1.0),
+    geometry: sphere(<0.0, 0.0, 0.0>, 1.0),
     material: diffuse(rgb(0.5, 0.5, 0.5)),
 }
 
 object
 {
-    surface: sphere(<0.0, 0.0, 0.0>, 10.0),
+    geometry: sphere(<0.0, 0.0, 0.0>, 10.0),
     material: emit(rgb(1.0, 1.0, 1.0)),
 }

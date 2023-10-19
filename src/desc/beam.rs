@@ -1,6 +1,6 @@
 use crate::camera::Camera;
 use crate::color::SRGB;
-use crate::desc::{CameraDescription, SceneDescription, SceneSelection, StandardScene};
+use crate::desc::{SceneDescription, SceneSelection, StandardScene};
 use crate::geom::{Aabb, Plane, Sphere, Rectangle, Blob, BlobPart, BoundedSurface, csg};
 use crate::lighting::LightingRegion;
 use crate::material::Material;
@@ -16,7 +16,7 @@ pub fn generate_description() -> SceneDescription
 {
     SceneDescription
     {
-        camera: CameraDescription
+        camera: super::edit::Camera
         {
             location: Point3::new(-3.0, 12.0, 12.0),
             look_at: Point3::new(0.0, -1.0, 0.0),

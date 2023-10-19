@@ -116,6 +116,7 @@ where
     T: IndexedValue + Debug + Default
 {
     items: Vec<T>,
+    is_default: bool,
     phantom: PhantomData<I>,
 }
 
@@ -128,21 +129,27 @@ where
     {
         let mut items = Vec::new();
         items.push(T::default());
-        IndexedVec{ items, phantom: PhantomData::default() }
+        IndexedVec{ items, is_default: true, phantom: PhantomData::default() }
     }
 
     pub fn push(&mut self, item: T) -> I
     {
-        let result = I::from_usize(self.items.len());
-        self.items.push(item);
-        result
+        if self.is_default
+        {
+            self.is_default = false;
+            self.items[0] = item;
+            I::from_usize(0)
+        }
+        else
+        {
+            self.items.push(item);            
+            I::from_usize(self.items.len() - 1)
+        }
     }
 
     pub fn push_default(&mut self) -> I
     {
-        let result = I::from_usize(self.items.len());
-        self.items.push(T::default());
-        result
+        self.push(T::default())
     }
 
     pub fn get<'a> (&'a self, index: I) -> &'a T

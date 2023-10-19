@@ -23,6 +23,22 @@ impl Color
     }
 }
 
+impl From<LinearRGB> for Color
+{
+    fn from(linear: LinearRGB) -> Self
+    {
+        Color { linear }
+    }
+}
+
+impl From<SRGB> for Color
+{
+    fn from(srgb: SRGB) -> Self
+    {
+        Color { linear: srgb.into() }
+    }
+}
+
 impl Default for Color
 {
     fn default() -> Self

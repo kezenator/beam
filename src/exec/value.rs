@@ -1,12 +1,8 @@
-use crate::color::LinearRGB;
-use crate::desc::CameraDescription;
-use crate::exec::{ExecError, ExecResult, Function, SourceLocation};
-use crate::geom::Surface;
+use crate::desc::edit::{Camera, Color, Scene, Texture};
+use crate::indexed::{MaterialIndex, GeomIndex, ObjectIndex, TextureIndex};
+use crate::exec::{Context, ExecError, ExecResult, Function, SourceLocation};
 use crate::geom::sdf::Sdf;
-use crate::material::Material;
 use crate::math::Scalar;
-use crate::object::Object;
-use crate::texture::Texture;
 use crate::vec::Vec3;
 
 #[derive(Clone)]
@@ -17,12 +13,12 @@ pub enum ValueData
     Scalar(Scalar),
     Vec3(Vec3),
     Function(Function),
-    Camera(CameraDescription),
-    Surface(Box<dyn Surface>),
-    Material(Material),
-    Color(LinearRGB),
-    Object(Object),
-    Texture(Texture),
+    Camera(Camera),
+    Geom(GeomIndex),
+    Material(MaterialIndex),
+    Color(Color),
+    Object(ObjectIndex),
+    Texture(TextureIndex),
     Sdf(Sdf),
 }
 
@@ -60,17 +56,17 @@ impl Value
         Value { source: function.get_source_location(), data: ValueData::Function(function), }
     }
 
-    pub fn new_camera(source: SourceLocation, camera: CameraDescription) -> Value
+    pub fn new_camera(source: SourceLocation, camera: Camera) -> Value
     {
         Value { source, data: ValueData::Camera(camera) }
     }
 
-    pub fn new_color(source: SourceLocation, color: LinearRGB) -> Value
+    pub fn new_color(source: SourceLocation, color: Color) -> Value
     {
         Value { source, data: ValueData::Color(color) }
     }
 
-    pub fn new_texture(source: SourceLocation, texture: Texture) -> Value
+    pub fn new_texture(source: SourceLocation, texture: TextureIndex) -> Value
     {
         Value { source, data: ValueData::Texture(texture) }
     }
@@ -80,17 +76,17 @@ impl Value
         Value { source, data: ValueData::Sdf(sdf) }
     }
 
-    pub fn new_surface(source: SourceLocation, surface: Box<dyn Surface>) -> Value
+    pub fn new_geom(source: SourceLocation, geom: GeomIndex) -> Value
     {
-        Value { source, data: ValueData::Surface(surface) }
+        Value { source, data: ValueData::Geom(geom) }
     }
 
-    pub fn new_material(source: SourceLocation, material: Material) -> Value
+    pub fn new_material(source: SourceLocation, material: MaterialIndex) -> Value
     {
         Value { source, data: ValueData::Material(material) }
     }
 
-    pub fn new_object(source: SourceLocation, object: Object) -> Value
+    pub fn new_object(source: SourceLocation, object: ObjectIndex) -> Value
     {
         Value { source, data: ValueData::Object(object) }
     }
@@ -136,17 +132,16 @@ impl Value
         }
     }
 
-    pub fn into_surface(self) -> ExecResult<Box<dyn Surface>>
+    pub fn into_geom(self) -> ExecResult<GeomIndex>
     {
         match self.data
         {
-            ValueData::Surface(val) => Ok(val),
-            ValueData::Sdf(val) => Ok(Box::new(val)),
+            ValueData::Geom(val) => Ok(val),
             _ => Err(self.type_error("Surface")),
         }
     }
 
-    pub fn into_material(self) -> ExecResult<Material>
+    pub fn into_material(self) -> ExecResult<MaterialIndex>
     {
         match self.data
         {
@@ -155,7 +150,7 @@ impl Value
         }
     }
 
-    pub fn into_color(self) -> ExecResult<LinearRGB>
+    pub fn into_color(self) -> ExecResult<Color>
     {
         match self.data
         {
@@ -164,12 +159,12 @@ impl Value
         }
     }
 
-    pub fn into_texture(self) -> ExecResult<Texture>
+    pub fn into_texture(self, context: &mut Context) -> ExecResult<TextureIndex>
     {
         match self.data
         {
-            ValueData::Texture(val) => Ok(val),
-            ValueData::Color(val) => Ok(Texture::solid(val)),
+            ValueData::Texture(texture) => Ok(texture),
+            ValueData::Color(color) => Ok(context.with_app_state::<Scene, _, _>(|scene| Ok(scene.textures.push(Texture::Solid(color))))?),
             _ => Err(self.type_error("Texture")),
         }
     }
@@ -183,7 +178,7 @@ impl Value
         }
     }
 
-    pub fn into_camera(self) -> ExecResult<CameraDescription>
+    pub fn into_camera(self) -> ExecResult<Camera>
     {
         match self.data
         {
@@ -192,7 +187,7 @@ impl Value
         }
     }
 
-    pub fn into_object(self) -> ExecResult<Object>
+    pub fn into_object(self) -> ExecResult<ObjectIndex>
     {
         match self.data
         {

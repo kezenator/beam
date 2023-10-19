@@ -2,17 +2,16 @@ use crate::geom::Surface;
 use crate::indexed::{IndexedVec, GeomIndex, ObjectIndex, TextureIndex, MaterialIndex};
 use crate::desc::edit::{Camera, Geom, Material, Object, Texture};
 use crate::render::RenderOptions;
-use crate::scene::SamplingMode;
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 
 #[derive(Clone)]
 pub struct Scene
 {
-    camera: Camera,
-    textures: IndexedVec<TextureIndex, Texture>,
-    materials: IndexedVec<MaterialIndex, Material>,
-    geom: IndexedVec<GeomIndex, Geom>,
-    objects: IndexedVec<ObjectIndex, Object>,
+    pub camera: Camera,
+    pub textures: IndexedVec<TextureIndex, Texture>,
+    pub materials: IndexedVec<MaterialIndex, Material>,
+    pub geom: IndexedVec<GeomIndex, Geom>,
+    pub objects: IndexedVec<ObjectIndex, Object>,
 }
 
 impl Scene

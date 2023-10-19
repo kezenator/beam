@@ -5,10 +5,10 @@ use crate::vec::Point3;
 #[derive(Clone, Debug)]
 pub struct Camera
 {
-    location: Point3,
-    look_at: Point3,
-    up: Point3,
-    fov: f64,
+    pub location: Point3,
+    pub look_at: Point3,
+    pub up: Point3,
+    pub fov: f64,
 }
 
 impl Camera
@@ -16,7 +16,7 @@ impl Camera
     pub fn build(&self, options: &RenderOptions) -> crate::camera::Camera
     {
         let aspect_ratio = (options.width as f64) / (options.height as f64);
-        
+
         crate::camera::Camera::new(
             self.location,
             self.look_at,
@@ -32,7 +32,7 @@ impl Default for Camera
     {
         Camera
         {
-            location: Point3::new(0.0, 1.0, -1.0),
+            location: Point3::new(0.0, 10.0, -10.0),
             look_at: Point3::new(0.0, 0.0, 0.0),
             up: Point3::new(0.0, 1.0, 0.0),
             fov: 30.0,
@@ -44,6 +44,8 @@ impl UiDisplay for Camera
 {
     fn ui_display(&self, ui: &UiRenderer, label: &str)
     {
+        let _id = ui.imgui.push_id(label);
+
         ui.display_vec3("Location", &self.location);
         ui.display_vec3("Look At", &self.look_at);
         ui.display_vec3("Up", &self.up);
@@ -55,6 +57,8 @@ impl UiEdit for Camera
 {
     fn ui_edit(&mut self, ui: &UiRenderer, label: &str) -> bool
     {
+        let _id = ui.imgui.push_id(label);
+
         let mut result = false;
         result |= ui.edit_vec3("Location", &mut self.location);
         result |= ui.edit_vec3("Look At", &mut self.look_at);

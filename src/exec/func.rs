@@ -60,7 +60,7 @@ struct FunctionData
     source: SourceLocation,
     name: String,
     formal_arguments: Vec<String>,
-    parent_context: Option<Context>,
+    parent_context: Context,
     code: FunctionCode,
 }
 
@@ -72,7 +72,7 @@ pub struct Function
 
 impl Function
 {
-    pub fn new_inbuilt<F>(name: String, formal_arguments: Vec<String>, function: F) -> Function
+    pub fn new_inbuilt<F>(name: String, formal_arguments: Vec<String>, context: &mut Context, function: F) -> Function
         where F: Fn(&mut Context) -> ExecResult<Value> + Sized + 'static
     {
         let code = FunctionCode::Inbuilt(Box::new(function));
@@ -81,7 +81,7 @@ impl Function
             source: SourceLocation::inbuilt(),
             name,
             formal_arguments,
-            parent_context: None,
+            parent_context: context.clone(),
             code,
         });
 
@@ -96,7 +96,7 @@ impl Function
             source,
             name,
             formal_arguments,
-            parent_context: Some(context.clone()),
+            parent_context: context.clone(),
             code,
         });
 
@@ -115,11 +115,7 @@ impl Function
 
     pub fn call(&self, _context: &mut Context, call_site: SourceLocation, actual_arguments: ActualArguments) -> ExecResult<Value>
     {
-        let mut context = match &self.data.parent_context
-        {
-            Some(parent) => parent.sub_frame(call_site, &self.data.formal_arguments, actual_arguments),
-            None => Context::new_root_frame(call_site, &self.data.formal_arguments, actual_arguments),
-        };
+        let mut context = self.data.parent_context.sub_frame(call_site, &self.data.formal_arguments, actual_arguments);
 
         match &self.data.code
         {

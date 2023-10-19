@@ -5,8 +5,8 @@ use super::Scene;
 #[derive(Clone, Debug, Default)]
 pub struct Object
 {
-    geom: GeomIndex,
-    material: MaterialIndex,
+    pub geom: GeomIndex,
+    pub material: MaterialIndex,
 }
 
 impl Object
@@ -21,7 +21,7 @@ impl Object
 
 impl IndexedValue for Object
 {
-    fn collect_indexes(&self, indexes: &mut HashSet<crate::indexed::AnyIndex>)
+    fn collect_indexes(&self, _indexes: &mut HashSet<crate::indexed::AnyIndex>)
     {
     }
 
@@ -35,6 +35,8 @@ impl UiDisplay for Object
 {
     fn ui_display(&self, ui: &UiRenderer, label: &str)
     {
+        let _id = ui.imgui.push_id(label);
+
         self.geom.ui_display(ui, "Geom");
         self.material.ui_display(ui, "Material");
     }
@@ -44,6 +46,8 @@ impl UiEdit for Object
 {
     fn ui_edit(&mut self, ui: &UiRenderer, label: &str) -> bool
     {
+        let _id = ui.imgui.push_id(label);
+
         let mut result = false;
         result |= self.geom.ui_edit(ui, "Geom");
         result |= self.material.ui_edit(ui, "Material");

@@ -1,7 +1,4 @@
-use crate::camera::Camera;
 use crate::exec::{Context, ExecResult, parse};
-use crate::math::Scalar;
-use crate::object::Object;
 use crate::render::RenderOptions;
 use crate::scene::Scene;
 use crate::vec::Point3;
@@ -29,18 +26,9 @@ pub enum SceneSelection
 }
 
 #[derive(Clone)]
-pub struct CameraDescription
-{
-    pub location: Point3,
-    pub look_at: Point3,
-    pub up: Point3,
-    pub fov: Scalar,
-}
-
-#[derive(Clone)]
 pub struct SceneDescription
 {
-    pub camera: CameraDescription,
+    pub camera: edit::Camera,
     pub selection: SceneSelection,
 }
 
@@ -59,11 +47,11 @@ impl SceneDescription
 
     pub fn new_script(script: String) -> ExecResult<Self>
     {
-        let (camera, _objects) = run_script(&script)?;
+        let scene = run_script(&script)?;
 
         Ok(SceneDescription
         {
-            camera,
+            camera: scene.camera,
             selection: SceneSelection::Exec(script),
         })
     }
@@ -72,7 +60,7 @@ impl SceneDescription
     {
         SceneDescription
         {
-            camera: CameraDescription
+            camera: edit::Camera
                 {
                     location: Point3::new(0.0, 0.0, 1.0),
                     look_at: Point3::new(0.0, 0.0, 0.0),
@@ -99,14 +87,7 @@ impl SceneDescription
             },
             SceneSelection::Exec(script) =>
             {
-                let (_, objects) = run_script(script).expect("Script execution failed");
-
-                Scene::new(
-                    options.sampling_mode,
-                    Camera::new(self.camera.location, self.camera.look_at, self.camera.up, self.camera.fov, (options.width as f64) / (options.height as f64)),
-                    vec![],
-                    objects
-                )
+                run_script(script).expect("Script execution failed").build(options)
             },
             SceneSelection::Edit(edit) =>
             {
@@ -116,38 +97,18 @@ impl SceneDescription
     }
 }
 
-fn run_script(script: &str) -> ExecResult<(CameraDescription, Vec<Object>)>
+pub fn run_script(script: &str) -> ExecResult<edit::Scene>
 {
     let expressions = parse(script)?;
 
-    let mut camera = CameraDescription
-    {
-        location: Point3::new(0.0, 0.0, 1.0),
-        look_at: Point3::new(0.0, 0.0, 0.0),
-        up: Point3::new(0.0, 1.0, 0.0),
-        fov: 40.0,
-    };
-    let mut objects = Vec::new();
-
-    let mut context = Context::new();
+    let mut context = Context::new_with_state(edit::Scene::new());
 
     for exp in expressions
     {
-        let val = exp.evaluate(&mut context)?;
-
-        if let Ok(cam) = val.clone().into_camera()
-        {
-            camera = cam;
-        }
-        else if let Ok(obj) = val.into_object()
-        {
-            objects.push(obj);
-        }
-        else
-        {
-            // Ignore other statements
-        }
+        exp.evaluate(&mut context)?;
     }
 
-    Ok((camera, objects))
+    let scene = context.with_app_state::<edit::Scene, _, _>(|scene| Ok(scene.clone()))?;
+
+    Ok(scene)
 }

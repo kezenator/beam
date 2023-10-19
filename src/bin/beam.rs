@@ -28,6 +28,7 @@ struct AppState
     progress: Option<beam::render::RenderProgress>,
     keyboard_modifiers: winit::event::ModifiersState,
     scene: beam::desc::edit::Scene,
+    source: String,
 }
 
 impl AppState
@@ -42,6 +43,7 @@ impl AppState
         let progress = None;
         let keyboard_modifiers = ModifiersState::empty();
         let scene = beam::desc::edit::Scene::new();
+        let source = "camera{\n   location: <0.0, 0.0, 9.0>,\n   look_at: <0.0, 0.0, 0.0>,\n   up: <0.0, 1.0, 0.0>,\n   fov: 40.0,\n}".to_owned();
 
         AppState
         {
@@ -53,6 +55,7 @@ impl AppState
             progress,
             keyboard_modifiers,
             scene,
+            source,
         }
     }
 
@@ -357,6 +360,21 @@ impl beam::ui::UiApplication<()> for AppState
         
         if let Some(_editor_window) = ui.imgui.window("Editor Demo").begin()
         {
+            {
+                let _script = ui.imgui.push_id("script");
+
+                ui.imgui.input_text_multiline("source", &mut self.source, [300.0, 100.0])
+                    .build();
+
+                if ui.imgui.button("Run")
+                {
+                    if let Ok(scene) = beam::desc::run_script(&self.source)
+                    {
+                        self.scene = scene;
+                    }
+                }
+            }
+
             self.scene.ui_display(ui, "Display");
             self.scene.ui_edit(ui, "Edit");
 
