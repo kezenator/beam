@@ -43,3 +43,19 @@ fn to_u8_saturate(f: Scalar) -> u8
         0u8
     }    
 }
+
+impl From<SRGB> for [f32; 3]
+{
+    fn from(value: SRGB) -> Self
+    {
+        [value.r as f32, value.g as f32, value.b as f32]
+    }
+}
+
+impl From<[f32; 3]> for SRGB
+{
+    fn from(value: [f32; 3]) -> Self
+    {
+        SRGB{ r: value[0] as Scalar, g: value[1] as Scalar, b: value[2] as Scalar }
+    }
+}

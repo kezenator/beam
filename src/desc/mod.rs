@@ -8,6 +8,7 @@ use crate::vec::Point3;
 
 mod beam;
 mod cornell;
+pub mod edit;
 mod veach;
 
 #[derive(Clone)]
@@ -24,6 +25,7 @@ pub enum SceneSelection
 {
     Standard(StandardScene),
     Exec(String),
+    Edit(edit::Scene),
 }
 
 #[derive(Clone)]
@@ -66,6 +68,21 @@ impl SceneDescription
         })
     }
 
+    pub fn new_edit(scene: &edit::Scene) -> Self
+    {
+        SceneDescription
+        {
+            camera: CameraDescription
+                {
+                    location: Point3::new(0.0, 0.0, 1.0),
+                    look_at: Point3::new(0.0, 0.0, 0.0),
+                    up: Point3::new(0.0, 1.0, 0.0),
+                    fov: 40.0,
+                },
+            selection: SceneSelection::Edit(scene.clone()),
+        }
+    }
+
     pub fn build_scene(&self, options: &RenderOptions) -> Scene
     {
         match &self.selection
@@ -91,6 +108,10 @@ impl SceneDescription
                     objects
                 )
             },
+            SceneSelection::Edit(edit) =>
+            {
+                edit.build(options)
+            }
         }
     }
 }

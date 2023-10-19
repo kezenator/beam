@@ -4,7 +4,7 @@ use crate::geom::{Surface, Volume};
 use crate::ray::{Ray, RayRange};
 use crate::vec::{Dir3, Point3};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Sdf
 {
     Sphere{ center: Point3, radius: Scalar },

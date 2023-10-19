@@ -1,6 +1,8 @@
-use std::rc::Rc;
+use std::{rc::Rc, any::Any};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use itertools::TakeWhileRef;
+
 use crate::exec::{ActualArguments, ExecError, ExecResult, SourceLocation, Value};
 
 #[derive(Clone)]
@@ -91,6 +93,15 @@ impl Context
             frame: Rc::new(RefCell::new(Frame::new_block(self.frame.clone()))),
         }
     }
+
+    pub fn with_app_state<AppState, Func, Value>(&self, func: Func) -> Result<Value, ExecError>
+    where
+        AppState: Any,
+        Func: FnOnce(&mut AppState) -> Result<Value, ExecError>
+    {
+        self.frame.borrow().with_app_state::<AppState, Func, Value>(func)
+    }
+
 }
 
 struct Frame
@@ -99,6 +110,7 @@ struct Frame
     call_site: SourceLocation,
     positional: Vec<Value>,
     named: HashMap<String, Value>,
+    app_state: Option<Rc<RefCell<dyn Any>>>,
 }
 
 impl Frame
@@ -111,6 +123,21 @@ impl Frame
             call_site: SourceLocation::inbuilt(),
             positional: Vec::new(),
             named: HashMap::new(),
+            app_state: None,
+        }
+    }
+
+    fn new_with_state<AppState>(app_state: AppState) -> Self
+    where
+        AppState: Any
+    {
+        Frame
+        {
+            parent: None,
+            call_site: SourceLocation::inbuilt(),
+            positional: Vec::new(),
+            named: HashMap::new(),
+            app_state: Some(Rc::new(RefCell::new(app_state))),
         }
     }
 
@@ -124,6 +151,7 @@ impl Frame
             call_site,
             positional: Vec::new(),
             named: HashMap::new(),
+            app_state: None,
         }
     }
 
@@ -135,6 +163,7 @@ impl Frame
             call_site: call_site,
             positional: Vec::new(),
             named: HashMap::new(),
+            app_state: None,
         };
 
         match actual_arguments
@@ -211,5 +240,34 @@ impl Frame
     fn get_param_all_positional(&self) -> Vec<Value>
     {
         self.positional.clone()
+    }
+
+    fn with_app_state<AppState, Func, Value>(&self, func: Func) -> Result<Value, ExecError>
+    where
+        AppState: Any,
+        Func: FnOnce(&mut AppState) -> Result<Value, ExecError>
+    {
+        // Try and run ourselves
+
+        if let Some(app_state) = &self.app_state
+        {
+            if let Some(app_state) = app_state.borrow_mut().downcast_mut::<AppState>()
+            {
+                return func(app_state);
+            }
+        }
+
+        // Try and delgate to our parent state
+
+        if let Some(parent) = &self.parent
+        {
+            return parent.borrow_mut().with_app_state(func);
+        }
+
+        // No-one has this state
+
+        Err(ExecError::new(
+            self.call_site,
+            format!("No app_state for type {}", std::any::type_name::<AppState>())))
     }
 }

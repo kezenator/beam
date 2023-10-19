@@ -8,6 +8,8 @@ use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::time::Instant;
 
+use super::UiRenderer;
+
 mod clipboard;
 
 // A system that runs an application
@@ -115,7 +117,7 @@ impl<T: 'static> System<T>
                 {
                     let ui = imgui.frame();
 
-                    app.render_ui(ui);
+                    app.render_ui(&UiRenderer::new(ui));
 
                     let gl_window = display.gl_window();
                     let mut target = display.draw();

@@ -10,7 +10,7 @@ use crate::ray::{Ray, RayRange};
 use crate::sample::Sampler;
 use crate::vec::{Dir3, Point3, RefractResult, bsdf_reflect, bsdf_refract_or_reflect};
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum SamplingMode
 {
     Uniform,

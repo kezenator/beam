@@ -4,6 +4,7 @@ pub mod color;
 pub mod desc;
 pub mod exec;
 pub mod geom;
+pub mod indexed;
 pub mod intersection;
 pub mod lighting;
 pub mod material;

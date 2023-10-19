@@ -6,10 +6,11 @@ use crate::sample::Sampler;
 
 use std::time::{Instant, Duration};
 use std::thread::JoinHandle;
+use crossbeam::channel::Sender;
 use itertools::Itertools;
 use rand::{thread_rng, seq::SliceRandom};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenderIlluminationMode
 {
     Local,

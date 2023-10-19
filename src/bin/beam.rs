@@ -7,6 +7,7 @@ use beam::desc::{SceneDescription, StandardScene};
 use beam::math::Scalar;
 use beam::render::{Renderer, RenderOptions, RenderIlluminationMode};
 use beam::scene::SamplingMode;
+use beam::ui::{UiDisplay, UiEdit, UiRenderer};
 use beam::vec::{Mat4, Vec3, Vec4};
 
 
@@ -26,6 +27,7 @@ struct AppState
     pixels: beam::ui::PixelDisplay,
     progress: Option<beam::render::RenderProgress>,
     keyboard_modifiers: winit::event::ModifiersState,
+    scene: beam::desc::edit::Scene,
 }
 
 impl AppState
@@ -39,6 +41,7 @@ impl AppState
         let pixels = beam::ui::PixelDisplay::new(system.display(), width, height);
         let progress = None;
         let keyboard_modifiers = ModifiersState::empty();
+        let scene = beam::desc::edit::Scene::new();
 
         AppState
         {
@@ -48,7 +51,8 @@ impl AppState
             renderer,
             pixels,
             progress,
-            keyboard_modifiers
+            keyboard_modifiers,
+            scene,
         }
     }
 
@@ -338,15 +342,32 @@ impl beam::ui::UiApplication<()> for AppState
         self.pixels.render(display, frame);
     }
 
-    fn render_ui(&mut self, ui: &imgui::Ui)
+    fn render_ui(&mut self, ui: &UiRenderer)
     {
         if let Some(progress) = &self.progress
         {
-            if let Some(_) = ui.window("Progress").begin()
+            if let Some(_progress_window) = ui.imgui.window("Progress").begin()
             {
-                render_progress(ui, progress)
+                if render_progress(ui.imgui, &mut self.options, progress)
+                {
+                    self.renderer = self.new_renderer();
+                }
             }
         }
+        
+        if let Some(_editor_window) = ui.imgui.window("Editor Demo").begin()
+        {
+            self.scene.ui_display(ui, "Display");
+            self.scene.ui_edit(ui, "Edit");
+
+            if ui.imgui.button("Build")
+            {
+                self.desc = SceneDescription::new_edit(&self.scene);
+                self.renderer = self.new_renderer();                
+            }
+        }
+
+        ui.imgui.show_metrics_window(&mut true);
     }
 
     fn idle(&mut self)
@@ -371,8 +392,51 @@ impl beam::ui::UiApplication<()> for AppState
     }
 }
 
-fn render_progress(ui: &imgui::Ui, progress: &beam::render::RenderProgress)
+fn render_progress(ui: &imgui::Ui, options: &mut RenderOptions, progress: &beam::render::RenderProgress) -> bool
 {
+    let mut changed = false;
+
+    if let Some(_) = ui.begin_combo("Illumination", format!("{:?}", options.illumination_mode))
+    {
+        if ui.selectable(format!("{:?}", beam::render::RenderIlluminationMode::Global))
+        {
+            changed = true;
+            options.illumination_mode = beam::render::RenderIlluminationMode::Global;
+        }
+        if ui.selectable(format!("{:?}", beam::render::RenderIlluminationMode::Local))
+        {
+            changed = true;
+            options.illumination_mode = beam::render::RenderIlluminationMode::Local;
+        }
+    }
+
+    if options.illumination_mode == beam::render::RenderIlluminationMode::Global
+    {
+        if let Some(_) = ui.begin_combo("Sampling", format!("{:?}", options.sampling_mode))
+        {
+            if ui.selectable(format!("{:?}", beam::scene::SamplingMode::Uniform))
+            {
+                changed = true;
+                options.sampling_mode = beam::scene::SamplingMode::Uniform;
+            }
+            if ui.selectable(format!("{:?}", beam::scene::SamplingMode::BsdfOnly))
+            {
+                changed = true;
+                options.sampling_mode = beam::scene::SamplingMode::BsdfOnly;
+            }
+            if ui.selectable(format!("{:?}", beam::scene::SamplingMode::LightsOnly))
+            {
+                changed = true;
+                options.sampling_mode = beam::scene::SamplingMode::LightsOnly;
+            }
+            if ui.selectable(format!("{:?}", beam::scene::SamplingMode::BsdfAndLights))
+            {
+                changed = true;
+                options.sampling_mode = beam::scene::SamplingMode::BsdfAndLights;
+            }
+        }
+    }
+
     ui.text(&progress.actions);
     ui.text("Total Duration:");
     ui.text(duration_to_str(&progress.total_duration));
@@ -419,6 +483,8 @@ fn render_progress(ui: &imgui::Ui, progress: &beam::render::RenderProgress)
         ui.table_next_column();
         ui.text(percent_to_str(progress.stats.stopped_due_to_min_prob, progress.stats.num_samples));
     }
+
+    changed
 }
 
 fn percent_to_str(num: u64, den: u64) -> String
