@@ -7,10 +7,17 @@ use crate::vec::{Dir3, Point3, Vec3};
 use crate::math::Scalar;
 
 #[derive(Clone, Debug)]
+pub struct TriangleVertex
+{
+    pub location: Point3,
+}
+
+#[derive(Clone, Debug)]
 pub enum Geom
 {
     Sphere{center: Point3, radius: Scalar},
     Plane{point: Point3, normal: Dir3},
+    Triangle([TriangleVertex;3]),
 }
 
 impl Geom
@@ -21,6 +28,7 @@ impl Geom
         {
             Geom::Sphere{center, radius} => Box::new(crate::geom::Sphere::new(*center, *radius)),
             Geom::Plane{point, normal} => Box::new(crate::geom::Plane::new(*point, *normal)),
+            Geom::Triangle(vertices) => Box::new(crate::geom::Triangle::new(vertices[0].location, vertices[1].location, vertices[2].location)),
         }
     }
 
@@ -30,6 +38,7 @@ impl Geom
         {
             Geom::Sphere{..} => "Sphere",
             Geom::Plane{..} => "Plane",
+            Geom::Triangle(_) => "Triangle",
         }
     }
 
@@ -42,6 +51,7 @@ impl Geom
             for entry in [
                 Geom::Sphere{center: Point3::new(0.0, 0.0, 0.0), radius: 0.0},
                 Geom::Plane{point: Point3::new(0.0, 0.0, 0.0), normal: Dir3::new(0.0, 1.0, 0.0)},
+                Geom::Triangle([TriangleVertex{location: Point3::new(0.0, 0.0, 0.0)}, TriangleVertex{location: Point3::new(1.0, 0.0, 0.0)}, TriangleVertex{location: Point3::new(0.0, 1.0, 0.0)}]),
             ]
             {
                 let entry_tag = entry.ui_tag();
@@ -101,6 +111,13 @@ impl UiDisplay for Geom
                 ui.display_vec3("Point", point);
                 ui.display_vec3("Normal", normal);
             },
+            Geom::Triangle(vertices) =>
+            {
+                ui.imgui.label_text(label, "Triangle");
+                ui.display_vec3("V1", &vertices[0].location);
+                ui.display_vec3("V2", &vertices[1].location);
+                ui.display_vec3("V3", &vertices[2].location);
+            },
         }
     }
 }
@@ -123,6 +140,13 @@ impl UiEdit for Geom
             {
                 ui.edit_vec3("Point", point);
                 ui.edit_vec3("Normal", normal);
+            },
+            Geom::Triangle(vertices) =>
+            {
+                ui.imgui.label_text(label, "Triangle");
+                ui.edit_vec3("V1", &mut vertices[0].location);
+                ui.edit_vec3("V2", &mut vertices[1].location);
+                ui.edit_vec3("V3", &mut vertices[2].location);
             },
         }
 

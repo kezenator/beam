@@ -13,14 +13,17 @@ use beam::vec::{Mat4, Vec3, Vec4};
 
 fn main() -> Result<(), String>
 {
+    let filename = std::env::args().nth(1);
+    let filecontents = filename.map(|filename| std::fs::read_to_string(filename).unwrap());
     let system = beam::ui::System::init("Beam");
-    let app_state = AppState::new(&system, 128, 128);
+    let app_state = AppState::new(&system, 128, 128, filecontents);
     system.main_loop(app_state);
 }
 
 struct AppState
 {
     filename: Option<String>,
+    downscale: u32,
     options: RenderOptions,
     desc: SceneDescription,
     renderer: Renderer,
@@ -33,21 +36,30 @@ struct AppState
 
 impl AppState
 {
-    pub fn new(system: &beam::ui::System<()>, width: u32, height: u32) -> Self
+    pub fn new(system: &beam::ui::System<()>, width: u32, height: u32, default_file: Option<String>) -> Self
     {
         let filename = None;
+        let downscale = 1;
         let options = RenderOptions::new(width, height);
-        let desc = SceneDescription::new_standard(StandardScene::Cornell);
+        let mut desc = SceneDescription::new_standard(StandardScene::Cornell);
         let renderer = Renderer::new(options.clone(), desc.clone());
         let pixels = beam::ui::PixelDisplay::new(system.display(), width, height);
         let progress = None;
         let keyboard_modifiers = ModifiersState::empty();
-        let scene = beam::desc::edit::Scene::new();
-        let source = "camera{\n   location: <0.0, 0.0, 9.0>,\n   look_at: <0.0, 0.0, 0.0>,\n   up: <0.0, 1.0, 0.0>,\n   fov: 40.0,\n}".to_owned();
+        let mut scene = beam::desc::edit::Scene::new();
+        let mut source = "camera{\n   location: <0.0, 0.0, 9.0>,\n   look_at: <0.0, 0.0, 0.0>,\n   up: <0.0, 1.0, 0.0>,\n   fov: 40.0,\n}".to_owned();
+
+        if let Some(default_file) = default_file
+        {
+            scene = beam::desc::run_script(&default_file).unwrap();
+            source = default_file;
+            desc = SceneDescription::new_script(source.clone()).unwrap();
+        }
 
         AppState
         {
             filename,
+            downscale,
             options,
             desc,
             renderer,
@@ -334,9 +346,11 @@ impl beam::ui::UiApplication<()> for AppState
 
     fn render_background(&mut self, display: &glium::Display, frame: &mut glium::Frame)
     {
-        if frame.get_dimensions() != self.pixels.dimensions()
+        let frame_dimensions = frame.get_dimensions();
+        let desired_dimensions = (frame_dimensions.0 / self.downscale, frame_dimensions.1 / self.downscale);
+        if desired_dimensions != self.pixels.dimensions()
         {
-            let (width, height) = frame.get_dimensions();
+            let (width, height) = desired_dimensions;
             self.pixels.resize(width, height);
             self.options.width = width;
             self.options.height = height;
@@ -351,7 +365,7 @@ impl beam::ui::UiApplication<()> for AppState
         {
             if let Some(_progress_window) = ui.imgui.window("Progress").begin()
             {
-                if render_progress(ui.imgui, &mut self.options, progress)
+                if render_progress(ui.imgui, &mut self.downscale, &mut self.options, progress)
                 {
                     self.renderer = self.new_renderer();
                 }
@@ -410,9 +424,11 @@ impl beam::ui::UiApplication<()> for AppState
     }
 }
 
-fn render_progress(ui: &imgui::Ui, options: &mut RenderOptions, progress: &beam::render::RenderProgress) -> bool
+fn render_progress(ui: &imgui::Ui, downscale: &mut u32, options: &mut RenderOptions, progress: &beam::render::RenderProgress) -> bool
 {
     let mut changed = false;
+
+    changed |= ui.input_scalar("Downscale", downscale).build();
 
     if let Some(_) = ui.begin_combo("Illumination", format!("{:?}", options.illumination_mode))
     {

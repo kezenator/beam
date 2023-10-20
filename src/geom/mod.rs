@@ -13,6 +13,7 @@ pub mod plane;
 pub mod rectangle;
 pub mod sdf;
 pub mod sphere;
+pub mod triangle;
 
 pub use aabb::Aabb;
 pub use blob::{Blob, BlobPart};
@@ -22,6 +23,7 @@ pub use plane::Plane;
 pub use rectangle::{OneWayRectangle, Rectangle};
 pub use sdf::Sdf;
 pub use sphere::Sphere;
+pub use triangle::Triangle;
 
 pub trait Surface: CloneableSurface
 {

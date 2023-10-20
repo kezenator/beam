@@ -1,5 +1,5 @@
 use crate::color::SRGB;
-use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture};
+use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture, TriangleVertex};
 use crate::exec::{Context, Function, Value};
 use crate::geom::Sdf;
 
@@ -230,6 +230,22 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let point = context.get_param_named("point")?.into_vec3()?;
             let normal = context.get_param_named("normal")?.into_vec3()?;
             let geom = Geom::Plane{ point, normal };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+
+            Ok(Value::new_geom(context.get_call_site(), index))
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
+        "triangle".to_owned(),
+        vec!["v1".to_owned(), "v2".to_owned(), "v3".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let v1 = TriangleVertex{ location: context.get_param_named("v1")?.into_vec3()? };
+            let v2 = TriangleVertex{ location: context.get_param_named("v2")?.into_vec3()? };
+            let v3 = TriangleVertex{ location: context.get_param_named("v3")?.into_vec3()? };
+            let geom = Geom::Triangle([v1, v2, v3]);
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
