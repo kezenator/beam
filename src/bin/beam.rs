@@ -14,9 +14,8 @@ use beam::vec::{Mat4, Vec3, Vec4};
 fn main() -> Result<(), String>
 {
     let filename = std::env::args().nth(1);
-    let filecontents = filename.map(|filename| std::fs::read_to_string(filename).unwrap());
     let system = beam::ui::System::init("Beam");
-    let app_state = AppState::new(&system, 128, 128, filecontents);
+    let app_state = AppState::new(&system, 128, 128, filename);
     system.main_loop(app_state);
 }
 
@@ -31,14 +30,13 @@ struct AppState
     progress: Option<beam::render::RenderProgress>,
     keyboard_modifiers: winit::event::ModifiersState,
     scene: beam::desc::edit::Scene,
-    source: String,
 }
 
 impl AppState
 {
     pub fn new(system: &beam::ui::System<()>, width: u32, height: u32, default_file: Option<String>) -> Self
     {
-        let filename = None;
+        let filename = default_file.clone();
         let downscale = 1;
         let options = RenderOptions::new(width, height);
         let mut desc = SceneDescription::new_standard(StandardScene::Cornell);
@@ -47,16 +45,8 @@ impl AppState
         let progress = None;
         let keyboard_modifiers = ModifiersState::empty();
         let mut scene = beam::desc::edit::Scene::new();
-        let mut source = "camera{\n   location: <0.0, 0.0, 9.0>,\n   look_at: <0.0, 0.0, 0.0>,\n   up: <0.0, 1.0, 0.0>,\n   fov: 40.0,\n}".to_owned();
 
-        if let Some(default_file) = default_file
-        {
-            scene = beam::desc::run_script(&default_file).unwrap();
-            source = default_file;
-            desc = SceneDescription::new_script(source.clone()).unwrap();
-        }
-
-        AppState
+        let mut result = AppState
         {
             filename,
             downscale,
@@ -67,8 +57,15 @@ impl AppState
             progress,
             keyboard_modifiers,
             scene,
-            source,
+        };
+
+        if let Some(filename) = &result.filename
+        {
+            let filename = filename.clone();
+            result.load_file(&filename);
         }
+
+        result
     }
 
     pub fn new_renderer(&self) -> Renderer
@@ -109,6 +106,8 @@ impl AppState
     pub fn handle_keycode(&mut self, keycode: VirtualKeyCode, keymod: ModifiersState) -> bool
     {
         let ctrl = keymod.ctrl();
+
+        let mut camera_changed = false;
 
         let handled = match keycode
         {
@@ -173,14 +172,6 @@ impl AppState
                 self.options.illumination_mode = RenderIlluminationMode::Local;
                 true
             }
-            VirtualKeyCode::C =>
-            {
-                println!("Camera Location: {:?}", self.desc.camera.location);
-                println!("Camera Look-at:  {:?}", self.desc.camera.look_at);
-                println!("Camera Up:       {:?}", self.desc.camera.up);
-                println!("Camera FOV:      {:?}", self.desc.camera.fov);
-                false
-            },
             VirtualKeyCode::L =>
             {
                 self.options.illumination_mode = match self.options.illumination_mode
@@ -201,6 +192,7 @@ impl AppState
                 {
                     self.move_around(-1.0, 0.0);
                 }
+                camera_changed = true;
                 true
             },
             VirtualKeyCode::Right =>
@@ -213,6 +205,7 @@ impl AppState
                 {
                     self.move_around(1.0, 0.0);
                 }
+                camera_changed = true;
                 true
             },
             VirtualKeyCode::Up =>
@@ -225,6 +218,7 @@ impl AppState
                 {
                     self.move_around(0.0, -1.0);
                 }
+                camera_changed = true;
                 true
             },
             VirtualKeyCode::Down =>
@@ -237,16 +231,19 @@ impl AppState
                 {
                     self.move_around(0.0, 1.0);
                 }
+                camera_changed = true;
                 true
             },
             VirtualKeyCode::NumpadAdd =>
             {
                 self.desc.camera.fov = (self.desc.camera.fov - 5.0).clamp(1.0, 175.0);
+                camera_changed = true;
                 true
             },
             VirtualKeyCode::NumpadSubtract =>
             {
                 self.desc.camera.fov = (self.desc.camera.fov + 5.0).clamp(1.0, 175.0);
+                camera_changed = true;
                 true
             },
             _ =>
@@ -254,6 +251,11 @@ impl AppState
                 false
             },
         };
+
+        if camera_changed
+        {
+            self.scene.camera = self.desc.camera.clone();
+        }
 
         if handled
         {
@@ -374,21 +376,6 @@ impl beam::ui::UiApplication<()> for AppState
         
         if let Some(_editor_window) = ui.imgui.window("Editor Demo").begin()
         {
-            {
-                let _script = ui.imgui.push_id("script");
-
-                ui.imgui.input_text_multiline("source", &mut self.source, [300.0, 100.0])
-                    .build();
-
-                if ui.imgui.button("Run")
-                {
-                    if let Ok(scene) = beam::desc::run_script(&self.source)
-                    {
-                        self.scene = scene;
-                    }
-                }
-            }
-
             self.scene.ui_display(ui, "Display");
             self.scene.ui_edit(ui, "Edit");
 

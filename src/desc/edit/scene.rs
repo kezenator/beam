@@ -34,7 +34,7 @@ impl Scene
         }
     }
 
-    pub fn build(&self, options: &RenderOptions) -> crate::scene::Scene
+    pub fn build(&self, options: &RenderOptions, camera_override: Option<&Camera>) -> crate::scene::Scene
     {
         let mut objects = Vec::new();
 
@@ -45,7 +45,7 @@ impl Scene
 
         crate::scene::Scene::new(
             options.sampling_mode,
-            self.camera.build(options),
+            camera_override.unwrap_or(&self.camera).build(options),
             Vec::new(),
             objects)
     }

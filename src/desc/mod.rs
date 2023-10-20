@@ -60,13 +60,7 @@ impl SceneDescription
     {
         SceneDescription
         {
-            camera: edit::Camera
-                {
-                    location: Point3::new(0.0, 0.0, 1.0),
-                    look_at: Point3::new(0.0, 0.0, 0.0),
-                    up: Point3::new(0.0, 1.0, 0.0),
-                    fov: 40.0,
-                },
+            camera: scene.camera.clone(),
             selection: SceneSelection::Edit(scene.clone()),
         }
     }
@@ -87,11 +81,11 @@ impl SceneDescription
             },
             SceneSelection::Exec(script) =>
             {
-                run_script(script).expect("Script execution failed").build(options)
+                run_script(script).expect("Script execution failed").build(options, Some(&self.camera))
             },
             SceneSelection::Edit(edit) =>
             {
-                edit.build(options)
+                edit.build(options, Some(&self.camera))
             }
         }
     }
