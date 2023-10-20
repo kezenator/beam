@@ -63,6 +63,7 @@ impl AppState
         {
             let filename = filename.clone();
             result.load_file(&filename);
+            result.renderer = result.new_renderer();
         }
 
         result
@@ -81,17 +82,18 @@ impl AppState
         {
             Ok(text) =>
             {
-                match SceneDescription::new_script(text)
+                match beam::desc::run_script(&text)
                 {
-                    Ok(desc) =>
+                    Ok(scene) =>
                     {
-                        self.desc = desc;
+                        self.desc = SceneDescription::new_edit(&scene);
+                        self.scene = scene;
                         return;
                     },
                     Err(err) =>
                     {
                         println!("Error: Could not execute script: {:?}", err);
-                    },
+                    },                    
                 }
             },
             Err(err) =>

@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use crate::geom::Surface;
-use crate::import;
 use crate::indexed::{IndexedValue, AnyIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::vec::{Dir3, Point3, Vec3};
@@ -14,12 +13,41 @@ pub struct TriangleVertex
 }
 
 #[derive(Clone, Debug)]
+pub struct Triangle
+{
+    pub vertices: [TriangleVertex; 3],
+}
+
+impl Triangle
+{
+    fn build(&self) -> crate::geom::Triangle
+    {
+        crate::geom::Triangle::new(self.vertices[0].location, self.vertices[1].location, self.vertices[2].location)
+    }
+}
+
+impl Default for Triangle
+{
+    fn default() -> Self
+    {
+        Triangle
+        {
+            vertices: [
+                TriangleVertex { location: Point3::new(1.0, 0.0, 0.0) },
+                TriangleVertex { location: Point3::new(0.0, 1.0, 0.0) },
+                TriangleVertex { location: Point3::new(0.0, 0.0, 1.0) },
+            ]
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum Geom
 {
     Sphere{center: Point3, radius: Scalar},
     Plane{point: Point3, normal: Dir3},
-    Triangle([TriangleVertex;3]),
-    ObjFile{path: String},
+    Triangle{triangle: Triangle},
+    Mesh{triangles: Vec<Triangle>},
 }
 
 impl Geom
@@ -30,8 +58,8 @@ impl Geom
         {
             Geom::Sphere{center, radius} => Box::new(crate::geom::Sphere::new(*center, *radius)),
             Geom::Plane{point, normal} => Box::new(crate::geom::Plane::new(*point, *normal)),
-            Geom::Triangle(vertices) => Box::new(crate::geom::Triangle::new(vertices[0].location, vertices[1].location, vertices[2].location)),
-            Geom::ObjFile{path} => import::obj::import_obj_file_as_triangle_mesh(path),
+            Geom::Triangle{triangle} => Box::new(triangle.build()),
+            Geom::Mesh{triangles} => Box::new(crate::geom::Mesh::new(triangles.iter().map(|t| t.build()).collect())),
         }
     }
 
@@ -41,8 +69,8 @@ impl Geom
         {
             Geom::Sphere{..} => "Sphere",
             Geom::Plane{..} => "Plane",
-            Geom::Triangle(_) => "Triangle",
-            Geom::ObjFile{..} => ".obj File",
+            Geom::Triangle{..} => "Triangle",
+            Geom::Mesh{..} => "Mesh",
         }
     }
 
@@ -55,8 +83,8 @@ impl Geom
             for entry in [
                 Geom::Sphere{center: Point3::new(0.0, 0.0, 0.0), radius: 0.0},
                 Geom::Plane{point: Point3::new(0.0, 0.0, 0.0), normal: Dir3::new(0.0, 1.0, 0.0)},
-                Geom::Triangle([TriangleVertex{location: Point3::new(0.0, 0.0, 0.0)}, TriangleVertex{location: Point3::new(1.0, 0.0, 0.0)}, TriangleVertex{location: Point3::new(0.0, 1.0, 0.0)}]),
-                Geom::ObjFile { path: "scenes\\Lowpoly_tree_sample.obj".to_owned() }
+                Geom::Triangle{triangle: Triangle::default()},
+                Geom::Mesh{triangles: vec![Triangle::default()]},
             ]
             {
                 let entry_tag = entry.ui_tag();
@@ -116,17 +144,17 @@ impl UiDisplay for Geom
                 ui.display_vec3("Point", point);
                 ui.display_vec3("Normal", normal);
             },
-            Geom::Triangle(vertices) =>
+            Geom::Triangle{triangle} =>
             {
                 ui.imgui.label_text(label, "Triangle");
-                ui.display_vec3("V1", &vertices[0].location);
-                ui.display_vec3("V2", &vertices[1].location);
-                ui.display_vec3("V3", &vertices[2].location);
+                ui.display_vec3("V1", &triangle.vertices[0].location);
+                ui.display_vec3("V2", &triangle.vertices[1].location);
+                ui.display_vec3("V3", &triangle.vertices[2].location);
             },
-            Geom::ObjFile{ path } =>
+            Geom::Mesh{ triangles } =>
             {
-                ui.imgui.label_text(label, ".obj File");
-                ui.imgui.label_text("Path", path);
+                ui.imgui.label_text(label, "Mesh");
+                ui.imgui.label_text("Triangles", triangles.len().to_string());
             },
         }
     }
@@ -151,15 +179,15 @@ impl UiEdit for Geom
                 result |= ui.edit_vec3("Point", point);
                 result |= ui.edit_vec3("Normal", normal);
             },
-            Geom::Triangle(vertices) =>
+            Geom::Triangle{triangle} =>
             {
-                result |= ui.edit_vec3("V1", &mut vertices[0].location);
-                result |= ui.edit_vec3("V2", &mut vertices[1].location);
-                result |= ui.edit_vec3("V3", &mut vertices[2].location);
+                result |= ui.edit_vec3("V1", &mut triangle.vertices[0].location);
+                result |= ui.edit_vec3("V2", &mut triangle.vertices[1].location);
+                result |= ui.edit_vec3("V3", &mut triangle.vertices[2].location);
             },
-            Geom::ObjFile{ path } =>
+            Geom::Mesh{ triangles } =>
             {
-                result |= ui.imgui.input_text("Path", path).build();
+                ui.imgui.label_text("Triangles", triangles.len().to_string());
             },
         }
 

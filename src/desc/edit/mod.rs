@@ -8,8 +8,7 @@ pub mod texture;
 
 pub use camera::Camera;
 pub use color::Color;
-pub use geom::Geom;
-pub use geom::TriangleVertex;
+pub use geom::{Geom, Triangle, TriangleVertex};
 pub use material::Material;
 pub use object::Object;
 pub use scene::Scene;

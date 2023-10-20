@@ -20,7 +20,6 @@ pub enum StandardScene
 pub enum SceneSelection
 {
     Standard(StandardScene),
-    Exec(String),
     Edit(edit::Scene),
 }
 
@@ -39,20 +38,9 @@ impl SceneDescription
         {
             StandardScene::BeamExample => beam::generate_description(),
             StandardScene::Cornell => cornell::generate_description(),
-            StandardScene::Furnace => Self::new_script(include_str!("furnace.beam").to_owned()).expect("Error in in-built script"),
+            StandardScene::Furnace => Self::new_edit(&run_script(include_str!("furnace.beam")).expect("Error in in-built script")),
             StandardScene::Veach => veach::generate_description(),
         }
-    }
-
-    pub fn new_script(script: String) -> ExecResult<Self>
-    {
-        let scene = run_script(&script)?;
-
-        Ok(SceneDescription
-        {
-            camera: scene.camera,
-            selection: SceneSelection::Exec(script),
-        })
     }
 
     pub fn new_edit(scene: &edit::Scene) -> Self
@@ -77,10 +65,6 @@ impl SceneDescription
                     StandardScene::Furnace => panic!("Furnace is now a script"),
                     StandardScene::Veach => veach::generate_scene(self, options),
                 }
-            },
-            SceneSelection::Exec(script) =>
-            {
-                run_script(script).expect("Script execution failed").build(options, Some(&self.camera))
             },
             SceneSelection::Edit(edit) =>
             {

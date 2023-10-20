@@ -1,6 +1,7 @@
 use crate::color::SRGB;
-use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture, TriangleVertex};
+use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture, Triangle, TriangleVertex};
 use crate::exec::{Context, Function, Value};
+use crate::import;
 use crate::geom::Sdf;
 
 pub fn add_inbuilt_functions(root_context: &mut Context)
@@ -245,7 +246,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let v1 = TriangleVertex{ location: context.get_param_named("v1")?.into_vec3()? };
             let v2 = TriangleVertex{ location: context.get_param_named("v2")?.into_vec3()? };
             let v3 = TriangleVertex{ location: context.get_param_named("v3")?.into_vec3()? };
-            let geom = Geom::Triangle([v1, v2, v3]);
+            let geom = Geom::Triangle{triangle: Triangle { vertices: [v1, v2, v3]}};
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
@@ -259,7 +260,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         |context: &mut Context|
         {
             let path = context.get_param_named("path")?.into_string()?;
-            let geom = Geom::ObjFile { path };
+            let geom = import::obj::import_obj_file_as_triangle_mesh(&path);
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))

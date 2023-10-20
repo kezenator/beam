@@ -1,15 +1,16 @@
 use wavefront_obj::obj;
 
-use crate::{geom::Surface, geom::{Triangle, Mesh}, vec::Point3};
+use crate::desc::edit::{Geom, Triangle, TriangleVertex};
+use crate::vec::Point3;
 
-pub fn import_obj_file_as_triangle_mesh(path: &str) -> Box<dyn Surface>
+pub fn import_obj_file_as_triangle_mesh(path: &str) -> Geom
 {
     let obj = obj::parse(std::fs::read_to_string(path).expect("Can't read .obj file")).expect("Can't parse .obj file");
 
     convert_objset_to_mesh(&obj.objects[0])
 }
 
-fn convert_objset_to_mesh(obj_set: &obj::Object) -> Box<dyn Surface>
+fn convert_objset_to_mesh(obj_set: &obj::Object) -> Geom
 {
     let mut triangles = Vec::new();
 
@@ -19,18 +20,19 @@ fn convert_objset_to_mesh(obj_set: &obj::Object) -> Box<dyn Surface>
         {
             if let obj::Primitive::Triangle(v0, v1, v2) = shape.primitive
             {
-                triangles.push(Triangle::new(
-                    vertex_to_vec(&obj_set.vertices[v0.0]),
-                    vertex_to_vec(&obj_set.vertices[v1.0]),
-                    vertex_to_vec(&obj_set.vertices[v2.0])));
+                triangles.push(Triangle{ vertices: [
+                    convert_vertex(&obj_set.vertices[v0.0]),
+                    convert_vertex(&obj_set.vertices[v1.0]),
+                    convert_vertex(&obj_set.vertices[v2.0]),
+                ]});
             }
         }
     }
 
-    return Box::new(Mesh::new(triangles));
+    Geom::Mesh{ triangles }
 }
 
-fn vertex_to_vec(src: &obj::Vertex) -> Point3
+fn convert_vertex(src: &obj::Vertex) -> TriangleVertex
 {
-    Point3::new(src.x, src.y, src.z)
+    TriangleVertex { location: Point3::new(src.x, src.y, src.z) }
 }
