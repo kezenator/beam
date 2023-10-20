@@ -1,7 +1,6 @@
 use crate::exec::{Context, ExecResult, parse};
 use crate::render::RenderOptions;
 use crate::scene::Scene;
-use crate::vec::Point3;
 
 mod beam;
 mod cornell;

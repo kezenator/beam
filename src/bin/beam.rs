@@ -39,12 +39,12 @@ impl AppState
         let filename = default_file.clone();
         let downscale = 1;
         let options = RenderOptions::new(width, height);
-        let mut desc = SceneDescription::new_standard(StandardScene::Cornell);
+        let desc = SceneDescription::new_standard(StandardScene::Cornell);
         let renderer = Renderer::new(options.clone(), desc.clone());
         let pixels = beam::ui::PixelDisplay::new(system.display(), width, height);
         let progress = None;
         let keyboard_modifiers = ModifiersState::empty();
-        let mut scene = beam::desc::edit::Scene::new();
+        let scene = beam::desc::edit::Scene::new();
 
         let mut result = AppState
         {

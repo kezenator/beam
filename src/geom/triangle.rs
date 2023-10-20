@@ -1,6 +1,6 @@
 use crate::math::EPSILON;
-use crate::vec::{Dir3, Point3};
-use crate::geom::{Surface, Volume};
+use crate::vec::Point3;
+use crate::geom::Surface;
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 
