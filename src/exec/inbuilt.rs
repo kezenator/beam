@@ -254,6 +254,19 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
     ));
 
     funcs.push(Function::new_inbuilt(
+        "load_obj".to_owned(),
+        vec!["path".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let path = context.get_param_named("path")?.into_string()?;
+            context.with_app_state::<Scene, _, _>(|scene| { import::obj::import_obj_file(&path, scene); Ok(()) })?;
+
+            Ok(Value::new_void())
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
         "load_obj_as_mesh".to_owned(),
         vec!["path".to_owned()],
         root_context,
