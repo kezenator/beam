@@ -10,6 +10,7 @@ pub enum ValueData
 {
     Void,
     Bool(bool),
+    String(String),
     Scalar(Scalar),
     Vec3(Vec3),
     Function(Function),
@@ -39,6 +40,11 @@ impl Value
     pub fn new_bool(source: SourceLocation, val: bool) -> Value
     {
         Value { source, data: ValueData::Bool(val) }
+    }
+
+    pub fn new_string(source: SourceLocation, val: String) -> Value
+    {
+        Value { source, data: ValueData::String(val) }
     }
 
     pub fn new_scalar(source: SourceLocation, val: Scalar) -> Value
@@ -102,6 +108,15 @@ impl Value
         {
             ValueData::Bool(val) => Ok(val),
             _ => Err(self.type_error("Bool")),
+        }
+    }
+    
+    pub fn into_string(self) -> ExecResult<String>
+    {
+        match self.data
+        {
+            ValueData::String(val) => Ok(val),
+            _ => Err(self.type_error("String")),
         }
     }
     

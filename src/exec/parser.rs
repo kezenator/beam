@@ -24,6 +24,7 @@ impl SourceLocation
 enum TokenKind
 {
     Scalar,
+    String,
     Identifier,
     Operator,
     InvalidChar,
@@ -334,6 +335,12 @@ fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
             Ok(val) => Ok(Expression::new_constant(Value::new_scalar(token.source, val)))
         };
     }
+    else if parser.peek_kind(TokenKind::String)
+    {
+        let token = parser.next();
+
+        return Ok(Expression::new_constant(Value::new_string(token.source, token.text.to_owned())));
+    }
     else if parser.peek_kind(TokenKind::Identifier)
     {
         let token = parser.next();
@@ -404,7 +411,7 @@ fn parse_factor<'a>(parser: &mut Parser<'a>) -> ExecResult<Box<Expression>>
     }
     else
     {
-        return Err(parser.err_expected("Unsigned int, identifier or open parenthesis".to_owned()));
+        return Err(parser.err_expected("Unsigned int, string, identifier or open parenthesis/vector".to_owned()));
     }
 }
 
@@ -636,6 +643,37 @@ fn parse_tokens<'a>(input: &'a str) -> ExecResult<Vec<Token<'a>>>
         {
             lexer.accept_char();
             result.push(lexer.take_token(TokenKind::Operator));
+        }
+        else if ch == '\"'
+        {
+            // Ignore the open
+            lexer.accept_char();
+            lexer.ignore_token();
+
+            loop
+            {
+                let ch = lexer.peek();
+
+                if ch == '\"'
+                {
+                    result.push(lexer.take_token(TokenKind::String));
+                    lexer.accept_char();
+                    lexer.ignore_token();
+                    break;
+                }
+                else if (ch >= ' ') && (ch <= '~')
+                {
+                    lexer.accept_char();
+                }
+                else
+                {
+                    result.push(lexer.take_token(TokenKind::String));
+
+                    lexer.accept_char();
+                    result.push(lexer.take_token(TokenKind::InvalidChar));
+                    break;
+                }
+            }
         }
         else if ch.is_whitespace()
         {

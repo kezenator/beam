@@ -7,9 +7,9 @@ use crate::ray::{Ray, RayRange};
 #[derive(Clone)]
 pub struct Triangle
 {
-    p0: Point3,
-    p1: Point3,
-    p2: Point3,
+    pub p0: Point3,
+    pub p1: Point3,
+    pub p2: Point3,
 }
 
 impl Triangle

@@ -17,6 +17,7 @@ itertools = { version = "0.10.0" }
 notify = { version = "4.0.16" }
 num_cpus = { version = "1.13.0" }
 rand = { version = "0.8.3", features = ["small_rng"] }
+wavefront_obj = { version = "10.0.0" }
 winit = { version = "0.27.5" }
 vek = { version = "0.15.0" }
 

@@ -27,6 +27,8 @@ fn test_parse()
 {
     check_parse_error("add(");
     check_parse_error("1+");
+    check_parse_error("\"asdf");
+    check_parse_error("\"asdf\"+");
 }
 
 #[test]

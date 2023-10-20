@@ -253,6 +253,20 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
     ));
 
     funcs.push(Function::new_inbuilt(
+        "load_obj_as_mesh".to_owned(),
+        vec!["path".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let path = context.get_param_named("path")?.into_string()?;
+            let geom = Geom::ObjFile { path };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+
+            Ok(Value::new_geom(context.get_call_site(), index))
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
         "texture_checkerboard".to_owned(),
         vec!["a".to_owned(), "b".to_owned()],
         root_context,
