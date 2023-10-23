@@ -1,18 +1,25 @@
 use std::collections::HashMap;
-use wavefront_obj::{obj, mtl};
 
 use crate::color::SRGB;
 use crate::desc::edit::{Geom, Material, Object, Scene, Texture, Triangle, TriangleVertex};
+use crate::import::{FileSystemContext, ImportError};
 use crate::indexed::MaterialIndex;
 use crate::vec::Point3;
 
-pub fn import_obj_file(path: &str, scene: &mut Scene)
+
+pub mod obj_file;
+pub mod mtl_file;
+mod parser;
+
+pub fn import_obj_file(path: &str, scene: &mut Scene) -> Result<(), ImportError>
 {
-    let obj_set = obj::parse(std::fs::read_to_string(path).expect("Can't read .obj file")).expect("Can't parse .obj file");
+    let context = FileSystemContext::new();
+    let (contents, sub_context) = context.load_file(path)?;
+    let obj_file = obj_file::parse(&contents, path)?;
 
-    let mut materials = MaterialLoader::new(&obj_set.material_library);
+    let mut materials = MaterialLoader::new(&obj_file.material_library, &sub_context)?;
 
-    for obj in obj_set.objects
+    for obj in obj_file.objects.iter()
     {
         for geom in obj.geometry.iter()
         {
@@ -20,81 +27,81 @@ pub fn import_obj_file(path: &str, scene: &mut Scene)
 
             let mut triangles = Vec::new();
 
-            push_geom_triangles(&obj, &geom.shapes, &mut triangles);
+            push_geom_triangles(&obj_file, &geom, &mut triangles);
 
             let geom = scene.geom.push(Geom::Mesh { triangles });
 
             scene.objects.push(Object { geom, material });
         }
     }
+
+    Ok(())
 }
 
-pub fn import_obj_file_as_triangle_mesh(path: &str) -> Geom
+pub fn import_obj_file_as_triangle_mesh(path: &str) -> Result<Geom, ImportError>
 {
-    let obj_set = obj::parse(std::fs::read_to_string(path).expect("Can't read .obj file")).expect("Can't parse .obj file");
+    let context = FileSystemContext::new();
+    let (contents, _sub_context) = context.load_file(path)?;
+    let obj_file = obj_file::parse(&contents, path)?;
 
     let mut triangles = Vec::new();
 
-    for obj in obj_set.objects.iter()
+    for obj in obj_file.objects.iter()
     {
         for geom in obj.geometry.iter()
         {
-            push_geom_triangles(&obj, &geom.shapes, &mut triangles);
+            push_geom_triangles(&obj_file, geom, &mut triangles);
         }
     }
 
-    Geom::Mesh{ triangles }
+    Ok(Geom::Mesh{ triangles })
 }
 
-fn push_geom_triangles(obj: &obj::Object, shapes: &Vec<obj::Shape>, triangles: &mut Vec<Triangle>)
+fn push_geom_triangles(obj_file: &obj_file::ObjFile, geom: &obj_file::Geometry, triangles: &mut Vec<Triangle>)
 {
-    for shape in shapes.iter()
+    for triangle in geom.triangles.iter()
     {
-        if let obj::Primitive::Triangle(v0, v1, v2) = shape.primitive
-        {
-            triangles.push(Triangle{ vertices: [
-                convert_vertex(&obj.vertices[v0.0]),
-                convert_vertex(&obj.vertices[v1.0]),
-                convert_vertex(&obj.vertices[v2.0]),
-            ]});
-        }
+        triangles.push(Triangle{ vertices: [
+            convert_vector(&obj_file.vertices[triangle[0].vertex_index]),
+            convert_vector(&obj_file.vertices[triangle[1].vertex_index]),
+            convert_vector(&obj_file.vertices[triangle[2].vertex_index]),
+        ]});
     }
 }
 
-fn convert_vertex(src: &obj::Vertex) -> TriangleVertex
+fn convert_vector(src: &obj_file::Vector) -> TriangleVertex
 {
-    TriangleVertex { location: Point3::new(src.x, src.y, src.z) }
+    TriangleVertex { location: Point3::new(src.0, src.1, src.2) }
 }
 
 struct MaterialLoader
 {
-    loaded: HashMap<String, mtl::Material>,
+    loaded: HashMap<String, mtl_file::Material>,
     imported: HashMap<Option<String>, MaterialIndex>,
 }
 
 impl MaterialLoader
 {
-    fn new(path: &Option<String>) -> Self
+    fn new(path: &Option<String>, fs_context: &FileSystemContext) -> Result<Self, ImportError>
     {
         let mut loaded = HashMap::new();
 
         if let Some(path) = path
         {
-            let mtl_set = mtl::parse(std::fs::read_to_string(path).expect("Can't read .mtl file")).expect("Can't parse .mtl file");
+            let (contents, _sub_context) = fs_context.load_file(path)?;
+            let mtl_file = mtl_file::parse(&contents, &path)?;
 
-            for mtl in mtl_set.materials
+            for mtl in mtl_file.materials
             {
-                println!("Loaded {} material", mtl.name);
                 loaded.insert(mtl.name.clone(), mtl);
             }
-            println!("Loaded {} materials", loaded.len());
         }
 
-        MaterialLoader
+        Ok(MaterialLoader
         {
             loaded,
             imported: HashMap::new(),
-        }
+        })
     }
 
     fn load(&mut self, name: &Option<String>, scene: &mut Scene) -> MaterialIndex
@@ -112,10 +119,7 @@ impl MaterialLoader
         {
             if let Some(mtl) = self.loaded.get(name)
             {
-                let texture = scene.textures.push(Texture::Solid(SRGB::new(
-                    mtl.color_diffuse.r,
-                    mtl.color_diffuse.g,
-                    mtl.color_diffuse.b).into()));
+                let texture = scene.textures.push(Texture::Solid(mtl.diffuse.into()));
                 let result = scene.materials.push(Material::Diffuse{ texture });
                 self.imported.insert(Some(name.clone()), result);
                 return result

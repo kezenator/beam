@@ -58,7 +58,17 @@ impl LinearRGB
 
     pub fn to_srgb(&self) -> SRGB
     {
-        let linear_to_srgb = |c: Scalar| c.sqrt();
+        let linear_to_srgb = |c: Scalar|
+        {
+            if c <= 0.0031308
+            {
+                12.92 * c
+            }
+            else
+            {
+                1.055 * c.powf(1.0 / 2.4) - 0.055
+            }
+        };
 
         SRGB::new(linear_to_srgb(self.r), linear_to_srgb(self.g), linear_to_srgb(self.b))
     }
@@ -78,7 +88,17 @@ impl From<SRGB> for LinearRGB
 {
     fn from(val: SRGB) -> Self
     {
-        let srgb_to_linear = |c: Scalar| c * c;
+        let srgb_to_linear = |c: Scalar|
+        {
+            if c <= 0.04045
+            {
+                c / 12.92
+            }
+            else
+            {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
+        };
 
         LinearRGB::new(srgb_to_linear(val.r), srgb_to_linear(val.g), srgb_to_linear(val.b))
     }

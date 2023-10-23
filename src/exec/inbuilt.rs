@@ -4,6 +4,8 @@ use crate::exec::{Context, Function, Value};
 use crate::import;
 use crate::geom::Sdf;
 
+use super::ExecError;
+
 pub fn add_inbuilt_functions(root_context: &mut Context)
 {
     let mut funcs = Vec::new();
@@ -259,8 +261,17 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         root_context,
         |context: &mut Context|
         {
-            let path = context.get_param_named("path")?.into_string()?;
-            context.with_app_state::<Scene, _, _>(|scene| { import::obj::import_obj_file(&path, scene); Ok(()) })?;
+            let path = context.get_param_named("path")?;
+            let source_location = path.source_location();
+            let path = path.into_string()?;
+
+            context.with_app_state::<Scene, _, _>(|scene|
+                {
+                    import::obj::import_obj_file(&path, scene)
+                        .map_err(|i| ExecError::new(source_location, i.0))?;
+
+                    Ok(())
+                })?;
 
             Ok(Value::new_void())
         }
@@ -272,8 +283,11 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         root_context,
         |context: &mut Context|
         {
-            let path = context.get_param_named("path")?.into_string()?;
-            let geom = import::obj::import_obj_file_as_triangle_mesh(&path);
+            let path = context.get_param_named("path")?;
+            let source_location = path.source_location();
+            let path = path.into_string()?;
+
+            let geom = import::obj::import_obj_file_as_triangle_mesh(&path).map_err(|i| ExecError::new(source_location, i.0))?;
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
