@@ -1,5 +1,5 @@
 use crate::math::EPSILON;
-use crate::vec::Point3;
+use crate::vec::{Point3, Mat4};
 use crate::geom::Surface;
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
@@ -17,6 +17,16 @@ impl Triangle
     pub fn new(p0: Point3, p1: Point3, p2: Point3) -> Self
     {
         Triangle { p0, p1, p2 }
+    }
+
+    pub fn transformed(&self, matrix: &Mat4) -> Self
+    {
+        Triangle
+        {
+            p0: matrix.mul_point(self.p0),
+            p1: matrix.mul_point(self.p1),
+            p2: matrix.mul_point(self.p2),
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::desc::edit::{Camera, Color, Scene, Texture};
+use crate::geom::Aabb;
 use crate::indexed::{MaterialIndex, GeomIndex, ObjectIndex, TextureIndex};
 use crate::exec::{Context, ExecError, ExecResult, Function, SourceLocation};
 use crate::geom::sdf::Sdf;
@@ -16,6 +17,7 @@ pub enum ValueData
     Function(Function),
     Camera(Camera),
     Geom(GeomIndex),
+    Aabb(Aabb),
     Material(MaterialIndex),
     Color(Color),
     Object(ObjectIndex),
@@ -87,6 +89,11 @@ impl Value
         Value { source, data: ValueData::Geom(geom) }
     }
 
+    pub fn new_aabb(source: SourceLocation, aabb: Aabb) -> Value
+    {
+        Value { source, data: ValueData::Aabb(aabb) }
+    }
+
     pub fn new_material(source: SourceLocation, material: MaterialIndex) -> Value
     {
         Value { source, data: ValueData::Material(material) }
@@ -152,7 +159,16 @@ impl Value
         match self.data
         {
             ValueData::Geom(val) => Ok(val),
-            _ => Err(self.type_error("Surface")),
+            _ => Err(self.type_error("Geom")),
+        }
+    }
+
+    pub fn into_aabb(self) -> ExecResult<Aabb>
+    {
+        match self.data
+        {
+            ValueData::Aabb(val) => Ok(val),
+            _ => Err(self.type_error("Aabb")),
         }
     }
 

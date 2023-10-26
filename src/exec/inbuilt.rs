@@ -2,7 +2,7 @@ use crate::color::SRGB;
 use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture, Triangle, TriangleVertex};
 use crate::exec::{Context, Function, Value};
 use crate::import;
-use crate::geom::Sdf;
+use crate::geom::{Sdf, Aabb};
 
 use super::ExecError;
 
@@ -152,6 +152,21 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
     ));
 
     funcs.push(Function::new_inbuilt(
+        "aabb".to_owned(),
+        vec!["min".to_owned(), "max".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let min = context.get_param_named("min")?.into_vec3()?;
+            let max = context.get_param_named("max")?.into_vec3()?;
+
+            let aabb = Aabb::new(min, max);
+
+            Ok(Value::new_aabb(context.get_call_site(), aabb))
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
         "sphere".to_owned(),
         vec!["center".to_owned(), "radius".to_owned()],
         root_context,
@@ -257,7 +272,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
 
     funcs.push(Function::new_inbuilt(
         "load_obj".to_owned(),
-        vec!["path".to_owned()],
+        vec!["path".to_owned(), "destination".to_owned()],
         root_context,
         |context: &mut Context|
         {
@@ -265,9 +280,11 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let source_location = path.source_location();
             let path = path.into_string()?;
 
+            let destination = context.get_param_named("destination")?.into_aabb()?;
+
             context.with_app_state::<Scene, _, _>(|scene|
                 {
-                    import::obj::import_obj_file(&path, scene)
+                    import::obj::import_obj_file(&path, &destination, scene)
                         .map_err(|i| ExecError::new(source_location, i.0))?;
 
                     Ok(())

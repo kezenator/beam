@@ -5,6 +5,7 @@ use crate::indexed::{IndexedValue, AnyIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::vec::{Dir3, Point3, Vec3};
 use crate::math::Scalar;
+use crate::desc::edit::Transform;
 
 #[derive(Clone, Debug)]
 pub struct TriangleVertex
@@ -47,7 +48,7 @@ pub enum Geom
     Sphere{center: Point3, radius: Scalar},
     Plane{point: Point3, normal: Dir3},
     Triangle{triangle: Triangle},
-    Mesh{triangles: Vec<Triangle>},
+    Mesh{triangles: Vec<Triangle>, transform: Transform},
 }
 
 impl Geom
@@ -59,7 +60,13 @@ impl Geom
             Geom::Sphere{center, radius} => Box::new(crate::geom::Sphere::new(*center, *radius)),
             Geom::Plane{point, normal} => Box::new(crate::geom::Plane::new(*point, *normal)),
             Geom::Triangle{triangle} => Box::new(triangle.build()),
-            Geom::Mesh{triangles} => Box::new(crate::geom::Mesh::new(triangles.iter().map(|t| t.build()).collect())),
+            Geom::Mesh{triangles, transform} =>
+            {
+                let matrix = transform.build_matrix();
+                Box::new(crate::geom::Mesh::new(
+                    triangles.iter()
+                    .map(|t| t.build().transformed(&matrix)).collect()))
+            },
         }
     }
 
@@ -84,7 +91,7 @@ impl Geom
                 Geom::Sphere{center: Point3::new(0.0, 0.0, 0.0), radius: 0.0},
                 Geom::Plane{point: Point3::new(0.0, 0.0, 0.0), normal: Dir3::new(0.0, 1.0, 0.0)},
                 Geom::Triangle{triangle: Triangle::default()},
-                Geom::Mesh{triangles: vec![Triangle::default()]},
+                Geom::Mesh{triangles: vec![Triangle::default()], transform: Transform::new()},
             ]
             {
                 let entry_tag = entry.ui_tag();
@@ -151,10 +158,11 @@ impl UiDisplay for Geom
                 ui.display_vec3("V2", &triangle.vertices[1].location);
                 ui.display_vec3("V3", &triangle.vertices[2].location);
             },
-            Geom::Mesh{ triangles } =>
+            Geom::Mesh{ triangles, transform } =>
             {
                 ui.imgui.label_text(label, "Mesh");
                 ui.imgui.label_text("Triangles", triangles.len().to_string());
+                transform.ui_display(ui, "Transform");
             },
         }
     }
@@ -185,9 +193,10 @@ impl UiEdit for Geom
                 result |= ui.edit_vec3("V2", &mut triangle.vertices[1].location);
                 result |= ui.edit_vec3("V3", &mut triangle.vertices[2].location);
             },
-            Geom::Mesh{ triangles } =>
+            Geom::Mesh{ triangles, transform } =>
             {
                 ui.imgui.label_text("Triangles", triangles.len().to_string());
+                result |= transform.ui_edit(ui, "Transform");
             },
         }
 
