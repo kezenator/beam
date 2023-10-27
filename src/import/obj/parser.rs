@@ -54,6 +54,17 @@ impl<'a> Parser<'a>
         Ok(result)
     }
 
+    pub fn parse_line_1_float(&mut self) -> Result<f64, ImportError>
+    {
+        if self.cur_line_parts.len() != 2
+        {
+            return Err(self.create_error("Expected 1 float parameter"));
+        }
+        let result = self.cur_line_parts[1].parse::<f64>().map_err(|_| self.create_error("Invalid float parameter"))?;
+        self.to_next_line();
+        Ok(result)
+    }
+
     pub fn parse_line_vector(&mut self) -> Result<(f64, f64, f64), ImportError>
     {
         if (self.cur_line_parts.len() < 2) || (self.cur_line_parts.len() > 4)

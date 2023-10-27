@@ -1,5 +1,6 @@
 use crate::color::LinearRGB;
 use crate::geom::Sdf;
+use crate::import::image::Image;
 use crate::vec::Point3;
 
 #[derive(Clone)]
@@ -7,6 +8,7 @@ pub enum Texture
 {
     Solid(LinearRGB),
     Checkerboard(LinearRGB, LinearRGB),
+    Image(Image),
     Sdf(Sdf),
 }
 
@@ -20,6 +22,11 @@ impl Texture
     pub fn checkerboard<C1: Into<LinearRGB>, C2: Into<LinearRGB>>(c1: C1, c2: C2) -> Texture
     {
         Texture::Checkerboard(c1.into(), c2.into())
+    }
+
+    pub fn image(image: Image) -> Texture
+    {
+        Texture::Image(image)
     }
 
     pub fn sdf(sdf: Sdf) -> Texture
@@ -48,6 +55,13 @@ impl Texture
                     *c2
                 }
             }
+            Texture::Image(image) =>
+            {
+                let u = point[0].fract();
+                let v = point[1].fract();
+
+                image.sample_at_uv(u, v).into()
+            },
             Texture::Sdf(sdf) =>
             {
                 let val = sdf.distance(point);

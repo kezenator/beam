@@ -1,6 +1,6 @@
 use crate::math::Scalar;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SRGB
 {
     pub r: Scalar,

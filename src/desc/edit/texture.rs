@@ -3,12 +3,14 @@ use std::collections::HashSet;
 use crate::desc::edit::Color;
 use crate::indexed::{IndexedValue, AnyIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
+use crate::import::image::Image;
 
 #[derive(Clone, Debug)]
 pub enum Texture
 {
     Solid(Color),
     Checkerboard(Color, Color),
+    Image(Image),
 }
 
 impl Texture
@@ -19,6 +21,7 @@ impl Texture
         {
             Texture::Solid(color) => crate::texture::Texture::Solid(color.into_linear()),
             Texture::Checkerboard(a, b) => crate::texture::Texture::Checkerboard(a.into_linear(), b.into_linear()),
+            Texture::Image(image) => crate::texture::Texture::image(image.clone()),
         }
     }
 
@@ -28,6 +31,7 @@ impl Texture
         {
             Texture::Solid(_) => "Solid",
             Texture::Checkerboard(_,_) => "Checkerboard",
+            Texture::Image(_) => "Image",
         }
     }
 
@@ -39,7 +43,8 @@ impl Texture
         {
             for entry in [
                 Texture::Solid(Color::default()),
-                Texture::Checkerboard(Color::default(), Color::default()), ]
+                Texture::Checkerboard(Color::default(), Color::default()),
+                Texture::Image(Image::new_empty(10, 10)) ]
             {
                 let entry_tag = entry.ui_tag();
                 let selected = entry_tag == cur_tag;
@@ -98,6 +103,11 @@ impl UiDisplay for Texture
                 a.ui_display(ui, "A");
                 b.ui_display(ui, "B");
             },
+            Texture::Image(_image) =>
+            {
+                ui.imgui.label_text(label, "Checkerboard");
+                ui.imgui.text("Image");
+            },
         }
     }
 }
@@ -120,6 +130,10 @@ impl UiEdit for Texture
                 result |= a.ui_edit(ui, "Color A");
                 result |= b.ui_edit(ui, "Color B");
             },
+            Texture::Image(_image) =>
+            {
+                ui.imgui.text("Image");
+            }
         }
 
         ui.imgui.unindent();

@@ -5,6 +5,7 @@ use crate::desc::edit::transform::TransformStage;
 use crate::desc::edit::{Geom, Material, Object, Scene, Texture, Transform, Triangle, TriangleVertex};
 use crate::geom::Aabb;
 use crate::import::{FileSystemContext, ImportError};
+use crate::import::image::Image;
 use crate::indexed::MaterialIndex;
 use crate::vec::Point3;
 
@@ -16,18 +17,18 @@ mod parser;
 pub fn import_obj_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Result<(), ImportError>
 {
     let context = FileSystemContext::new();
-    let (contents, sub_context) = context.load_file(path)?;
+    let (contents, sub_context) = context.load_text_file(path)?;
     let obj_file = obj_file::parse(&contents, path)?;
 
     let transform = calc_transform(&obj_file.vertices, destination);
 
-    let mut materials = MaterialLoader::new(&obj_file.material_library, &sub_context)?;
+    let mut resources = ResourceLoader::new(&obj_file.material_library, sub_context)?;
 
     for obj in obj_file.objects.iter()
     {
         for geom in obj.geometry.iter()
         {
-            let material = materials.load(&geom.material_name, scene);
+            let material = resources.load_material(&geom.material_name, scene)?;
 
             let mut triangles = Vec::new();
 
@@ -45,7 +46,7 @@ pub fn import_obj_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Res
 pub fn import_obj_file_as_triangle_mesh(path: &str) -> Result<Geom, ImportError>
 {
     let context = FileSystemContext::new();
-    let (contents, _sub_context) = context.load_file(path)?;
+    let (contents, _sub_context) = context.load_text_file(path)?;
     let obj_file = obj_file::parse(&contents, path)?;
 
     let mut triangles = Vec::new();
@@ -109,65 +110,104 @@ fn calc_transform(vertices: &Vec<obj_file::Vector>, destination: &Aabb) -> Trans
     result
 }
 
-struct MaterialLoader
+struct ResourceLoader
 {
-    loaded: HashMap<String, mtl_file::Material>,
-    imported: HashMap<Option<String>, MaterialIndex>,
+    fs_context: FileSystemContext,
+    loaded_materials: HashMap<String, mtl_file::Material>,
+    imported_materials: HashMap<Option<String>, MaterialIndex>,
+    imported_images: HashMap<String, Image>,
 }
 
-impl MaterialLoader
+impl ResourceLoader
 {
-    fn new(path: &Option<String>, fs_context: &FileSystemContext) -> Result<Self, ImportError>
+    fn new(path: &Option<String>, fs_context: FileSystemContext) -> Result<Self, ImportError>
     {
-        let mut loaded = HashMap::new();
+        let mut loaded_materials = HashMap::new();
 
         if let Some(path) = path
         {
-            let (contents, _sub_context) = fs_context.load_file(path)?;
+            let (contents, _sub_context) = fs_context.load_text_file(path)?;
             let mtl_file = mtl_file::parse(&contents, &path)?;
 
             for mtl in mtl_file.materials
             {
-                loaded.insert(mtl.name.clone(), mtl);
+                loaded_materials.insert(mtl.name.clone(), mtl);
             }
         }
 
-        Ok(MaterialLoader
+        Ok(ResourceLoader
         {
-            loaded,
-            imported: HashMap::new(),
+            fs_context,
+            loaded_materials,
+            imported_materials: HashMap::new(),
+            imported_images: HashMap::new(),
         })
     }
 
-    fn load(&mut self, name: &Option<String>, scene: &mut Scene) -> MaterialIndex
+    fn load_material(&mut self, name: &Option<String>, scene: &mut Scene) -> Result<MaterialIndex, ImportError>
     {
         // See if already loaded
 
-        if let Some(result) = self.imported.get(name)
+        if let Some(result) = self.imported_materials.get(name)
         {
-            return *result;
+            return Ok(*result);
         }
 
         // Try and load
 
         if let Some(name) = name
         {
-            if let Some(mtl) = self.loaded.get(name)
+            if let Some(mtl) = self.loaded_materials.get(name).cloned()
             {
-                let texture = scene.textures.push(Texture::Solid(mtl.diffuse.into()));
+                if let (Some(disolve), Some(ior)) = (mtl.disolve, mtl.ior)
+                {
+                    if disolve < 1.0
+                    {
+                        // Use a dielectric
+                        let result = scene.materials.push(Material::Dielectric { ior });
+                        self.imported_materials.insert(Some(name.clone()), result);
+                        return Ok(result);
+                    }
+                }
+
+                // Create a diffuse material
+
+                let texture = if let Some(path) = mtl.diffuse_map
+                {
+                    let image = self.load_image(&path)?;
+                    scene.textures.push(Texture::Image(image))
+                }
+                else
+                {
+                    // Solid color
+                    scene.textures.push(Texture::Solid(mtl.diffuse.into()))
+                };
+
                 let result = scene.materials.push(Material::Diffuse{ texture });
-                self.imported.insert(Some(name.clone()), result);
-                return result
+                self.imported_materials.insert(Some(name.clone()), result);
+                return Ok(result);
             }
 
             // Return the cached none material
-            return self.load(&None, scene);
+            return self.load_material(&None, scene);
         }
 
         // Return the 'none' material
         let texture = scene.textures.push(Texture::Solid(SRGB::new(1.0, 1.0, 1.0).into()));
         let result = scene.materials.push(Material::Diffuse{ texture });
-        self.imported.insert(None, result);
-        result
+        self.imported_materials.insert(None, result);
+        Ok(result)
+    }
+
+    fn load_image(&mut self, path: &str) -> Result<Image, ImportError>
+    {
+        if let Some(existing) = self.imported_images.get(path)
+        {
+            return Ok(existing.clone());
+        }
+
+        let image = crate::import::image::import_image(path, &mut self.fs_context)?;
+        self.imported_images.insert(path.to_owned(), image.clone());
+        Ok(image)
     }
 }
