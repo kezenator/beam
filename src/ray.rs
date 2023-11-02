@@ -26,6 +26,7 @@ impl Ray
                 distance: distance,
                 location: None,
                 normal: normal,
+                texture_coords: None,
             }
         }
         else
@@ -37,6 +38,35 @@ impl Ray
                 distance: distance,
                 location: None,
                 normal: -normal,
+                texture_coords: None,
+            }
+        }
+    }
+
+    pub fn new_intersection_with_texture_coords(&self, distance: Scalar, normal: Dir3, texture_coords: Point3) -> SurfaceIntersection<'_>
+    {
+        if self.dir.dot(normal) <= 0.0
+        {
+            SurfaceIntersection
+            {
+                ray: self,
+                face: Face::Front,
+                distance: distance,
+                location: None,
+                normal: normal,
+                texture_coords: Some(texture_coords),
+            }
+        }
+        else
+        {
+            SurfaceIntersection
+            {
+                ray: self,
+                face: Face::Back,
+                distance: distance,
+                location: None,
+                normal: -normal,
+                texture_coords: Some(texture_coords),
             }
         }
     }
@@ -52,6 +82,7 @@ impl Ray
                 distance: distance,
                 location: Some(location),
                 normal: normal,
+                texture_coords: None,
             }
         }
         else
@@ -63,6 +94,7 @@ impl Ray
                 distance: distance,
                 location: Some(location),
                 normal: -normal,
+                texture_coords: None,
             }
         }
     }

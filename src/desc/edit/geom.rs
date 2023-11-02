@@ -11,6 +11,7 @@ use crate::desc::edit::Transform;
 pub struct TriangleVertex
 {
     pub location: Point3,
+    pub texture_coords: Point3,
 }
 
 #[derive(Clone, Debug)]
@@ -23,7 +24,13 @@ impl Triangle
 {
     fn build(&self) -> crate::geom::Triangle
     {
-        crate::geom::Triangle::new(self.vertices[0].location, self.vertices[1].location, self.vertices[2].location)
+        crate::geom::Triangle::new(
+            self.vertices[0].location,
+            self.vertices[1].location,
+            self.vertices[2].location,
+            self.vertices[0].texture_coords,
+            self.vertices[1].texture_coords,
+            self.vertices[2].texture_coords)
     }
 }
 
@@ -34,9 +41,21 @@ impl Default for Triangle
         Triangle
         {
             vertices: [
-                TriangleVertex { location: Point3::new(1.0, 0.0, 0.0) },
-                TriangleVertex { location: Point3::new(0.0, 1.0, 0.0) },
-                TriangleVertex { location: Point3::new(0.0, 0.0, 1.0) },
+                TriangleVertex
+                {
+                    location: Point3::new(1.0, 0.0, 0.0),
+                    texture_coords: Point3::new(1.0, 0.0, 0.0),
+                },
+                TriangleVertex
+                {
+                    location: Point3::new(0.0, 1.0, 0.0),
+                    texture_coords: Point3::new(0.0, 1.0, 0.0),
+                },
+                TriangleVertex
+                {
+                    location: Point3::new(0.0, 0.0, 1.0),
+                    texture_coords: Point3::new(0.0, 0.0, 0.0),
+                },
             ]
         }
     }
@@ -157,6 +176,9 @@ impl UiDisplay for Geom
                 ui.display_vec3("V1", &triangle.vertices[0].location);
                 ui.display_vec3("V2", &triangle.vertices[1].location);
                 ui.display_vec3("V3", &triangle.vertices[2].location);
+                ui.display_vec3("T1", &triangle.vertices[0].texture_coords);
+                ui.display_vec3("T2", &triangle.vertices[1].texture_coords);
+                ui.display_vec3("T3", &triangle.vertices[2].texture_coords);
             },
             Geom::Mesh{ triangles, transform } =>
             {
@@ -192,6 +214,9 @@ impl UiEdit for Geom
                 result |= ui.edit_vec3("V1", &mut triangle.vertices[0].location);
                 result |= ui.edit_vec3("V2", &mut triangle.vertices[1].location);
                 result |= ui.edit_vec3("V3", &mut triangle.vertices[2].location);
+                result |= ui.edit_vec3("T1", &mut triangle.vertices[0].texture_coords);
+                result |= ui.edit_vec3("T2", &mut triangle.vertices[1].texture_coords);
+                result |= ui.edit_vec3("T3", &mut triangle.vertices[2].texture_coords);
             },
             Geom::Mesh{ triangles, transform } =>
             {

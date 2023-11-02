@@ -9,7 +9,6 @@ use crate::import::image::Image;
 use crate::indexed::MaterialIndex;
 use crate::vec::Point3;
 
-
 pub mod obj_file;
 pub mod mtl_file;
 mod parser;
@@ -67,16 +66,34 @@ fn push_geom_triangles(obj_file: &obj_file::ObjFile, geom: &obj_file::Geometry, 
     for triangle in geom.triangles.iter()
     {
         triangles.push(Triangle{ vertices: [
-            convert_vector(&obj_file.vertices[triangle[0].vertex_index]),
-            convert_vector(&obj_file.vertices[triangle[1].vertex_index]),
-            convert_vector(&obj_file.vertices[triangle[2].vertex_index]),
+            convert_vertex(&obj_file, &triangle[0]),
+            convert_vertex(&obj_file, &triangle[1]),
+            convert_vertex(&obj_file, &triangle[2]),
         ]});
     }
 }
 
-fn convert_vector(src: &obj_file::Vector) -> TriangleVertex
+fn convert_vertex(file: &obj_file::ObjFile, triangle: &obj_file::Vertex) -> TriangleVertex
 {
-    TriangleVertex { location: Point3::new(src.0, src.1, src.2) }
+    let location = Point3::new(
+        file.vertices[triangle.vertex_index].0,
+        file.vertices[triangle.vertex_index].1,
+        file.vertices[triangle.vertex_index].2);
+
+    let mut texture_coords = location.clone();
+
+    if let Some(ti) = triangle.texture_index
+    {
+        if ti < file.texture_coords.len()
+        {
+            texture_coords = Point3::new(
+                file.texture_coords[ti].0,
+                file.texture_coords[ti].1,
+                file.texture_coords[ti].2);
+        }
+    }
+
+    TriangleVertex { location, texture_coords }
 }
 
 fn calc_transform(vertices: &Vec<obj_file::Vector>, destination: &Aabb) -> Transform

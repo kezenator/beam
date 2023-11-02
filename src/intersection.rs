@@ -17,6 +17,7 @@ pub struct SurfaceIntersection<'r>
     pub location: Option<Point3>,
     pub face: Face,
     pub normal: Dir3,
+    pub texture_coords: Option<Point3>,
 }
 
 impl<'r> SurfaceIntersection<'r>
@@ -28,6 +29,11 @@ impl<'r> SurfaceIntersection<'r>
             Some(location) => location,
             None => self.ray.point_at(self.distance),
         }
+    }
+
+    pub fn texture_coords(&self) -> Point3
+    {
+        self.texture_coords.unwrap_or(self.location())
     }
 }
 
@@ -42,6 +48,7 @@ pub struct ShadingIntersection
     pub location: Point3,
     pub normal: Point3,
     pub incoming: Point3,
+    pub texture_coords: Point3,
     pub face: Face,
 }
 
@@ -54,6 +61,7 @@ impl<'r> From<SurfaceIntersection<'r>> for ShadingIntersection
             location: val.location(),
             normal: val.normal,
             incoming: -val.ray.dir.normalized(),
+            texture_coords: val.texture_coords(),
             face: val.face,
         }
     }

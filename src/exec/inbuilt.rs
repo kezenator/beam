@@ -3,6 +3,7 @@ use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture, Triangle
 use crate::exec::{Context, Function, Value};
 use crate::import;
 use crate::geom::{Sdf, Aabb};
+use crate::vec::Point3;
 
 use super::ExecError;
 
@@ -260,9 +261,9 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         root_context,
         |context: &mut Context|
         {
-            let v1 = TriangleVertex{ location: context.get_param_named("v1")?.into_vec3()? };
-            let v2 = TriangleVertex{ location: context.get_param_named("v2")?.into_vec3()? };
-            let v3 = TriangleVertex{ location: context.get_param_named("v3")?.into_vec3()? };
+            let v1 = TriangleVertex{ location: context.get_param_named("v1")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), };
+            let v2 = TriangleVertex{ location: context.get_param_named("v2")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), };
+            let v3 = TriangleVertex{ location: context.get_param_named("v3")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), };
             let geom = Geom::Triangle{triangle: Triangle { vertices: [v1, v2, v3]}};
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
 

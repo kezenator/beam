@@ -56,14 +56,14 @@ impl Material
             {
                 MaterialInteraction::Diffuse
                 {
-                    diffuse_color: texture.get_color_at(intersection.location),
+                    diffuse_color: texture.get_color_at(intersection.texture_coords),
                 }
             },
             Material::Metal(texture, fuzz) =>
             {
                 MaterialInteraction::Reflection
                 {
-                    attenuate_color: texture.get_color_at(intersection.location),
+                    attenuate_color: texture.get_color_at(intersection.texture_coords),
                     fuzz: *fuzz,
                 }
             },
@@ -78,7 +78,7 @@ impl Material
             {
                 MaterialInteraction::Emit
                 {
-                    emitted_color: texture.get_color_at(intersection.location),
+                    emitted_color: texture.get_color_at(intersection.texture_coords),
                 }
             },
             Material::EmitFrontFaceOnly(texture) =>
@@ -88,7 +88,7 @@ impl Material
                     Face::Front =>
                         MaterialInteraction::Emit
                         {
-                            emitted_color: texture.get_color_at(intersection.location),
+                            emitted_color: texture.get_color_at(intersection.texture_coords),
                         },
                     Face::Back =>
                         MaterialInteraction::Diffuse

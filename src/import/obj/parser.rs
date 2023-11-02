@@ -91,14 +91,14 @@ impl<'a> Parser<'a>
         Ok((result1, result2, result3))
     }
 
-    pub fn parse_line_triangles(&mut self, num_verticies: usize, num_normals: usize, num_tex_coords: usize) -> Result<Vec<Triangle>, ImportError>
+    pub fn parse_line_triangles(&mut self, num_verticies: usize, num_texture_coords: usize, num_normals: usize) -> Result<Vec<Triangle>, ImportError>
     {
         if self.cur_line_parts.len() < 3
         {
             return Err(self.create_error("Expected at least 3 vertices"));
         }
 
-        let vertices = self.cur_line_parts[1..].iter().map(|part| self.parse_vertex(part, num_verticies, num_normals, num_tex_coords)).collect::<Vec<_>>();
+        let vertices = self.cur_line_parts[1..].iter().map(|part| self.parse_vertex(part, num_verticies, num_texture_coords, num_normals)).collect::<Vec<_>>();
 
         for vertex in vertices.iter()
         {
@@ -123,7 +123,7 @@ impl<'a> Parser<'a>
         Ok(triangles)
     }
 
-    pub fn parse_vertex(&self, face: &'a str, num_verticies: usize, num_normals: usize, num_tex_coords: usize) -> Result<Vertex, ImportError>
+    pub fn parse_vertex(&self, face: &'a str, num_verticies: usize, num_texture_coords: usize, num_normals: usize) -> Result<Vertex, ImportError>
     {
         let parts = face.split('/').collect::<Vec<_>>();
 
@@ -138,12 +138,12 @@ impl<'a> Parser<'a>
 
         if (parts.len() >= 2) && !parts[1].is_empty()
         {
-            normal_index = Some(self.parse_index(parts[1], num_normals, "vn")?);
+            texture_index = Some(self.parse_index(parts[1], num_texture_coords, "vt")?);
         }
 
         if (parts.len() >= 3) && !parts[2].is_empty()
         {
-            texture_index = Some(self.parse_index(parts[2], num_tex_coords, "vt")?);
+            normal_index = Some(self.parse_index(parts[2], num_normals, "vn")?);
         }
 
         Ok(Vertex{ vertex_index, normal_index, texture_index })
