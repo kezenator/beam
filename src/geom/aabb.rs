@@ -3,7 +3,7 @@ use crate::geom::{Surface, BoundingSurface, Volume};
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Aabb
 {
     pub min: Point3,
@@ -24,6 +24,13 @@ impl Aabb
             min: Point3::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y), self.min.z.min(other.min.z)),
             max: Point3::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y), self.max.z.max(other.max.z)),
         }
+    }
+
+    pub fn intersects(&self, other: &Aabb) -> bool
+    {
+        (self.max.x >= other.min.x) && (other.max.x >= self.min.x)
+        && (self.max.y >= other.min.y) && (other.max.y >= self.min.y)
+        && (self.max.z >= other.min.z) && (other.max.z >= self.min.z)
     }
 }
 
