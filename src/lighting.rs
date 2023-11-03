@@ -1,6 +1,7 @@
 use crate::geom::{SampleableSurface, Volume};
 use crate::vec::Point3;
 
+#[derive(Clone)]
 pub struct LightingRegion
 {
     pub covered_volume: Box<dyn Volume>,

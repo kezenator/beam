@@ -29,8 +29,8 @@ impl Mesh
 {
     pub fn new(triangles: Vec<Triangle>) -> Self
     {
-        //let octree = Octree::new(&triangles);
-        let octree = Octree::Leaf((0..triangles.len()).collect());
+        let octree = Octree::new(&triangles);
+        //let octree = Octree::Leaf((0..triangles.len()).collect());
         println!("Created Octree: {} triangles => {} nodes {} depth", triangles.len(), octree.count_nodes(), octree.max_depth());
         //assert!(false);
 

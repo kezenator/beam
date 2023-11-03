@@ -106,6 +106,7 @@ impl std::ops::Add for SceneSampleStats
     }
 }
 
+#[derive(Clone)]
 pub struct Scene
 {
     sampling_mode: SamplingMode,

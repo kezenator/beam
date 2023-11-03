@@ -154,7 +154,7 @@ impl SampleCollector
 struct RenderState
 {
     options: RenderOptions,
-    desc: SceneDescription,
+    scene: Scene,
     stats: SceneSampleStats,
     total_duration: Duration,
     pixels: Vec<SampleCollector>,
@@ -165,11 +165,12 @@ impl RenderState
     fn new(options: RenderOptions, desc: SceneDescription) -> Self
     {
         let num_pixels = (options.width as usize) * (options.height as usize);
+        let scene = desc.build_scene(&options);
 
         RenderState
         {
-            options: options,
-            desc: desc,
+            options,
+            scene,
             stats: SceneSampleStats::new(),
             total_duration: Duration::default(),
             pixels: vec![SampleCollector::new(); num_pixels],
@@ -331,9 +332,9 @@ fn render_pass(state: &mut RenderState, step: u32, all_pixels: bool, new_samples
     {
         let thread_sender = sub_sender.clone();
         let thread_options = state.options.clone();
-        let thread_desc = state.desc.clone();
+        let thread_scene = state.scene.clone();
 
-        std::thread::spawn(move || render_pixel_thread(thread_options, thread_desc, new_samples_per_pixel, chunks, thread_sender))
+        std::thread::spawn(move || render_pixel_thread(thread_options, thread_scene, new_samples_per_pixel, chunks, thread_sender))
     };
 
     let join_handles: Vec<JoinHandle<()>> = chunks
@@ -438,9 +439,8 @@ fn time_per_sample(duration: &Duration, samples: &u64) -> Duration
     }
 }
 
-fn render_pixel_thread(options: RenderOptions, desc: SceneDescription, new_samples_per_pixel: usize, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
+fn render_pixel_thread(options: RenderOptions, scene: Scene, new_samples_per_pixel: usize, updates: Vec<Vec<PixelRect>>, sender: Sender<SampleResult>)
 {
-    let scene = desc.build_scene(&options);
     let mut sampler = Sampler::new();
 
     for updates in updates.into_iter()
