@@ -122,6 +122,7 @@ pub fn parse<'a>(contents: &'a str, filename: &'a str) -> Result<ObjFile, Import
 
                 obj.triangles.append(&mut triangles);
             },
+            "l" => { parser.ignore_line(); },
             "g" => { parser.ignore_line(); },
             "s" => { parser.ignore_line(); },
             _ =>
