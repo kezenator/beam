@@ -79,7 +79,7 @@ impl Renderer
 {
     pub fn new(options: RenderOptions, desc: SceneDescription) -> Self
     {
-        let (sender, receiver) = crossbeam::channel::bounded(1);
+        let (sender, receiver) = crossbeam::channel::bounded(2 * num_cpus::get());
 
         let thread = Some(std::thread::spawn(move || render_thread(options, desc, sender)));
         let receiver = Some(receiver);
@@ -180,6 +180,25 @@ impl RenderState
 
 fn render_thread(options: RenderOptions, desc: SceneDescription, sender: Sender<RenderUpdate>)
 {
+    // Notify that we're building the scene
+
+    {
+        let final_update = RenderUpdate
+        {
+            progress: RenderProgress
+                {
+                    actions: "Building scene...".to_owned(),
+                    total_duration: Duration::default(),
+                    avg_duration_per_sample: Duration::default(),
+                    stats: SceneSampleStats::new(),
+                },
+            complete: false,
+            pixels: Vec::new(),
+        };
+
+        let _ = sender.send(final_update);
+    }
+
     let mut state = RenderState::new(options, desc);
 
     // First, do a quick pass with local lighting

@@ -33,12 +33,6 @@ pub fn import_obj_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Res
 
             push_geom_triangles(&obj_file, &geom, &mut triangles);
 
-            {
-                // TODO - debug - delete
-                let mesh = Geom::Mesh { triangles: triangles.clone(), transform: transform.clone() };
-                let _ = mesh.build_surface();
-            }
-
             let geom = scene.geom.push(Geom::Mesh { triangles, transform: transform.clone() });
 
             scene.objects.push(Object { geom, material });

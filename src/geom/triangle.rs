@@ -1,6 +1,6 @@
 use crate::math::EPSILON;
 use crate::vec::{Point3, Mat4};
-use crate::geom::{Aabb, Surface};
+use crate::geom::{Aabb, AabbBoundedSurface, Surface};
 use crate::intersection::SurfaceIntersection;
 use crate::ray::{Ray, RayRange};
 
@@ -34,8 +34,11 @@ impl Triangle
             t2: self.t2,
         }
     }
+}
 
-    pub fn bounds(&self) -> Aabb
+impl AabbBoundedSurface for Triangle
+{
+    fn get_bounding_aabb(&self) -> Aabb
     {
         Aabb::new(
             Point3::new(self.p0.x.min(self.p1.x.min(self.p2.x)), self.p0.y.min(self.p1.y.min(self.p2.y)), self.p0.z.min(self.p1.z.min(self.p2.z))),

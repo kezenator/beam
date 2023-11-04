@@ -10,6 +10,7 @@ pub mod bounds;
 pub mod csg;
 pub mod disc;
 pub mod mesh;
+pub mod octree;
 pub mod plane;
 pub mod rectangle;
 pub mod sdf;
@@ -21,6 +22,7 @@ pub use blob::{Blob, BlobPart};
 pub use bounds::BoundedSurface;
 pub use disc::Disc;
 pub use mesh::Mesh;
+pub use octree::Octree;
 pub use plane::Plane;
 pub use rectangle::{OneWayRectangle, Rectangle};
 pub use sdf::Sdf;
@@ -35,6 +37,11 @@ pub trait Surface: CloneableSurface + Send
 pub trait BoundingSurface: Surface
 {
     fn may_intersect_in_range(&self, ray: &Ray, range: &RayRange) -> bool;
+}
+
+pub trait AabbBoundedSurface: Surface
+{
+    fn get_bounding_aabb(&self) -> Aabb;
 }
 
 pub trait Volume: Surface + CloneableVolume
