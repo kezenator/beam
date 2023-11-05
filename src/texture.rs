@@ -58,7 +58,7 @@ impl Texture
             Texture::Image(image) =>
             {
                 let u = point[0].fract();
-                let v = 1.0 - point[1].fract();
+                let v = point[1].fract();
 
                 image.sample_at_uv(u, v).into()
             },

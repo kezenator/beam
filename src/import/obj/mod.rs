@@ -86,9 +86,14 @@ fn convert_vertex(file: &obj_file::ObjFile, triangle: &obj_file::Vertex) -> Tria
     {
         if ti < file.texture_coords.len()
         {
+            // Not 100% sure about .OBJ file texture co-ordinates.
+            // They seem backwards?
+            // Just putting a 1.0 - y in here as it seems to have
+            // some positive effects... TODO - sort out...
+
             texture_coords = Point3::new(
                 file.texture_coords[ti].0,
-                file.texture_coords[ti].1,
+                1.0 - file.texture_coords[ti].1,
                 file.texture_coords[ti].2);
         }
     }

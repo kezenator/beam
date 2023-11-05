@@ -3,23 +3,23 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::rc::Rc;
 
-use gltf::{Gltf, accessor};
-
-use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object};
+use crate::color::SRGB;
+use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object, Material, Texture};
 use crate::geom::Aabb;
+use crate::import;
 use crate::import::{FileSystemContext, ImportError};
-use crate::indexed::{MaterialIndex, Index};
+use crate::indexed::{MaterialIndex, TextureIndex};
 use crate::math::Scalar;
 use crate::vec::Point3;
 
-pub fn import_gltf_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Result<(), ImportError>
+pub fn import_gltf_file(path: &str, _destination: &Aabb, scene: &mut Scene) -> Result<(), ImportError>
 {
     let context = FileSystemContext::new();
     let filename = context.path_to_filename(path);
     let (contents, sub_context) = context.load_binary_file(path)?;
     let file_state = ScopedState::new(scene, sub_context, filename);
 
-    let gltf = Gltf::from_slice(&contents)
+    let gltf = gltf::Gltf::from_slice(&contents)
         .map_err(|e| file_state.error(&format!("Decode Error: {:?}", e)))?;
 
     match gltf.default_scene()
@@ -63,6 +63,8 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
                 gltf::mesh::Mode::Triangles =>
                 {
                     let positions = primitive_state.decode_accessor_required_vector_vec3_f32(primitive.get(&gltf::mesh::Semantic::Positions))?;
+                    let texture_coords = primitive_state.decode_accessor_optional_vector_vec2_f32(primitive.get(&gltf::mesh::Semantic::TexCoords(0)))?
+                        .unwrap_or_else(|| positions.clone());
 
                     let max_index = *indexes.iter().max().ok_or_else(|| primitive_state.error("Primitive must have at least one index"))?;
 
@@ -82,20 +84,25 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
 
                         for i in 0..num_tri
                         {
-                            let a = positions[indexes[3 * i + 0]];
-                            let b = positions[indexes[3 * i + 1]];
-                            let c = positions[indexes[3 * i + 2]];
+                            let x = positions[indexes[3 * i + 0]];
+                            let y = positions[indexes[3 * i + 1]];
+                            let z = positions[indexes[3 * i + 2]];
+
+                            let u = texture_coords[indexes[3 * i + 0]];
+                            let v = texture_coords[indexes[3 * i + 1]];
+                            let w = texture_coords[indexes[3 * i + 2]];
 
                             triangles.push(Triangle { vertices: [
-                                TriangleVertex{ location: a, texture_coords: a },
-                                TriangleVertex{ location: b, texture_coords: b },
-                                TriangleVertex{ location: c, texture_coords: c },
+                                TriangleVertex{ location: x, texture_coords: u },
+                                TriangleVertex{ location: y, texture_coords: v },
+                                TriangleVertex{ location: z, texture_coords: w },
                             ]});
                         }
 
+                        let material = import_material(&primitive_state, primitive.material())?;
+
                         let mut state = primitive_state.state.borrow_mut();
                         let geom = state.scene.geom.push(Geom::Mesh{ triangles, transform: Transform::new() });
-                        let material = MaterialIndex::from_usize(0);
                         let _obj = state.scene.objects.push(Object{ geom, material });
                     }
                 },
@@ -115,11 +122,78 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
     Ok(())
 }
 
+fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Result<MaterialIndex, ImportError>
+{
+    let index = material.index().unwrap_or(usize::MAX);
+    let material_state = parent_state.sub_state("material", material.name(), index);
+
+    let existing_index = material_state.state.borrow().materials.get(&index).cloned();
+    match existing_index
+    {
+        None =>
+        {
+            if let Some(spec_glossy) = material.pbr_specular_glossiness()
+            {
+                let diffuse = spec_glossy.diffuse_factor();
+                let diffuse = SRGB::new(diffuse[0] as Scalar, diffuse[1] as Scalar, diffuse[2] as Scalar);
+
+                let texture = match spec_glossy.diffuse_texture()
+                {
+                    None =>
+                    {
+                        let mut state = material_state.state.borrow_mut();
+                        Ok(state.scene.textures.push(Texture::Solid(diffuse.into())))
+                    },
+                    Some(image_info) =>
+                    {
+                        if image_info.texture_transform().is_some()
+                        {
+                            return Err(material_state.error("Texture transforms are not supported"));
+                        }
+
+                        import_image(&material_state, image_info.texture().source())
+                    },
+                }?;
+                let mut state = material_state.state.borrow_mut();
+                let added_index = state.scene.materials.push(Material::Diffuse{ texture });
+                state.materials.insert(index, added_index.clone());
+                Ok(added_index)
+            }
+            else
+            {
+                Err(material_state.error("Unsupported material"))
+            }
+        },
+        Some(existing) =>
+        {
+            Ok(existing)
+        }
+    }        
+}
+
+fn import_image(parent_state: &ScopedState, image: gltf::Image) -> Result<TextureIndex, ImportError>
+{
+    let texture_state = parent_state.sub_state("image", image.name(), image.index());
+
+    match image.source()
+    {
+        gltf::image::Source::View { .. } => Err(texture_state.error("Loading images from a view not supported")),
+        gltf::image::Source::Uri { uri, .. } =>
+        {
+            let mut state = texture_state.state.borrow_mut();
+            let image = import::image::import_image(uri, &mut state.fs_context)?;
+
+            Ok(state.scene.textures.push(Texture::Image(image)))
+        },
+    }
+}
+
 struct ImportState<'a>
 {
     scene: &'a mut Scene,
     fs_context: FileSystemContext,
     blobs: HashMap<Option<String>, Vec<u8>>,
+    materials: HashMap<usize, MaterialIndex>,
 }
 
 struct ScopedState<'a>
@@ -133,7 +207,8 @@ impl<'a> ScopedState<'a>
     fn new(scene: &'a mut Scene, fs_context: FileSystemContext, filename: String) -> Self
     {
         let blobs = HashMap::new();
-        let state = Rc::new(RefCell::new(ImportState { scene, fs_context, blobs }));
+        let materials = HashMap::new();
+        let state = Rc::new(RefCell::new(ImportState { scene, fs_context, blobs, materials }));
         ScopedState { state, path: filename }
     }
 
@@ -227,6 +302,27 @@ impl<'a> ScopedState<'a>
                 let z = f32::from_ne_bytes([v[8], v[9], v[10], v[11]]);
                 Point3::new(x as Scalar, y as Scalar, z as Scalar)
             })
+    }
+
+    fn decode_accessor_optional_vector_vec2_f32(&self, accessor: Option<gltf::Accessor>) -> Result<Option<Vec<Point3>>, ImportError>
+    {
+        self.decode_accessor_optional_vector(accessor, gltf::accessor::Dimensions::Vec2, gltf::accessor::DataType::F32,
+            |v: [u8; 8]|
+            {
+                let x = f32::from_ne_bytes([v[0], v[1], v[2], v[3]]);
+                let y = f32::from_ne_bytes([v[4], v[5], v[6], v[7]]);
+                Point3::new(x as Scalar, y as Scalar, 0.0)
+            })
+    }
+
+    fn decode_accessor_optional_vector<const L: usize, T, F>(&self, accessor: Option<gltf::Accessor>, dimensions: gltf::accessor::Dimensions, data_type: gltf::accessor::DataType, convert: F) -> Result<Option<Vec<T>>, ImportError>
+        where F: Fn([u8; L]) -> T + 'static
+    {
+        match accessor
+        {
+            None => Ok(None),
+            Some(_) => self.decode_accessor_required_vector(accessor, dimensions, data_type, convert).map(|v| Some(v)),
+        }
     }
 
     fn decode_accessor_required_vector<const L: usize, T, F>(&self, accessor: Option<gltf::Accessor>, dimensions: gltf::accessor::Dimensions, data_type: gltf::accessor::DataType, convert: F) -> Result<Vec<T>, ImportError>

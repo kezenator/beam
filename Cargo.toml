@@ -9,7 +9,7 @@ copypasta = { version = "0.8.2" }
 crossbeam = { version = "0.8.0" }
 float-ord = { version = "0.3.0" }
 glium = { version = "0.32.1" }
-gltf = { version = "1.3.0" }
+gltf = { version = "1.3.0", features = ["KHR_materials_pbrSpecularGlossiness", "KHR_texture_transform"] }
 image = { version = "0.24.7" }
 imgui = { version = "0.11.0", features = ["docking", "tables-api"] }
 imgui-glium-renderer = { version = "0.11.0" }
