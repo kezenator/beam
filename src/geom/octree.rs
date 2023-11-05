@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+
+use float_ord::FloatOrd;
+use itertools::Itertools;
+
 use crate::geom::{Aabb, AabbBoundedSurface, BoundingSurface, Surface};
 use crate::intersection::SurfaceIntersection;
 use crate::math::Scalar;
@@ -16,23 +21,14 @@ impl<S: AabbBoundedSurface + Clone + 'static> Octree<S>
 {
     pub fn new(items: Vec<S>, target_leaf_size: usize) -> Self
     {
-        assert!(!items.is_empty());
+        let Split{ bounds, sub_tree } = build_complete_octree(&items, target_leaf_size);
 
-        let mut bounds = items[0].get_bounding_aabb();
-
-        let mut item_bounds = Vec::new();
-        item_bounds.reserve(items.len());
-
-        for item in items.iter()
+        let result = Octree
         {
-            let item_bound = item.get_bounding_aabb();
-            bounds = bounds.union(&item_bound);
-            item_bounds.push(item_bound);
-        }
-
-        let tree = build_octree(&items, &item_bounds, bounds.clone(), "root");
-
-        let result = Octree { bounds, items, tree };
+            bounds,
+            items,
+            tree: sub_tree
+        };
 
         let stats = result.get_stats();
         println!("Created octree: {} items, {} nodes, {} total-item-refs, {} depth, ({}..{}) leaf-size, {} target-leaf-size",
@@ -178,112 +174,290 @@ impl OctreeStats
     }
 }
 
-fn build_octree<S: AabbBoundedSurface + Clone + 'static>(triangles: &Vec<S>, tri_bounds: &Vec<Aabb>, cur_bounds: Aabb, name: &str) -> OctreeNode
+struct BuildInfo<'a, S: AabbBoundedSurface + Clone + 'static>
 {
-    let indexes_in_cur_bounds = tri_bounds
-        .iter()
-        .enumerate()
-        .filter(|(_, tri_bound)| cur_bounds.intersects(tri_bound))
-        .map(|(i, _)| i)
-        .collect::<Vec<usize>>();
+    items: &'a Vec<S>,
+    item_bounds: Vec<Aabb>,
+    target_leaf_size: usize,
+}
 
-    //println!("Level: {} Contains: {} Within: {:?}", name, indexes_in_cur_bounds.len(), cur_bounds);
-    //assert!(name.len() < 80);
-
-    if indexes_in_cur_bounds.len() > 10
+impl<'a, S: AabbBoundedSurface + Clone + 'static> BuildInfo<'a, S>
+{
+    fn new(items: &'a Vec<S>, target_leaf_size: usize) -> Self
     {
-        // Try and split along longest axis
-        let x_size = (cur_bounds.max.x - cur_bounds.min.x).abs();
-        let y_size = (cur_bounds.max.y - cur_bounds.min.y).abs();
-        let z_size = (cur_bounds.max.z - cur_bounds.min.z).abs();
-        //println!("Level: {} Size: {}/{}/{}", name, x_size, y_size, z_size);
+        let item_bounds = items.iter().map(|i| i.get_bounding_aabb()).collect();
 
-        if (x_size >= y_size) && (x_size >= z_size)
+        BuildInfo { items, item_bounds, target_leaf_size }
+    }
+}
+
+struct CurSplitState
+{
+    bounds: Aabb,
+    included_indexes: Vec<usize>,
+    name: String,
+}
+
+impl CurSplitState
+{
+    fn new_root<'a, S: AabbBoundedSurface + Clone + 'static>(info: &'a BuildInfo<'a, S>) -> Self
+    {
+        assert!(!info.items.is_empty());
+
+        let mut bounds = info.items[0].get_bounding_aabb();
+
+        for i in info.items.iter()
         {
-            return create_split(
-                triangles, tri_bounds, cur_bounds, &indexes_in_cur_bounds,
-            &format!("{}.x", name),
-                |v| v.x,
-                |v, s| Point3::new(s, v.y, v.z));
+            bounds = bounds.union(&i.get_bounding_aabb());
         }
-        else if (y_size >= x_size) && (y_size >= z_size)
+
+        let included_indexes = (0..info.items.len()).collect();
+
+        let name = "root".to_owned();
+
+        CurSplitState { bounds, included_indexes, name }
+    }
+
+    fn new_sub(&self, dim_name: &'static str, split_index: usize, bounds: Aabb, included_indexes: Vec<usize>) -> Self
+    {
+        let name = format!("{}.{}{}", self.name, dim_name, split_index);
+        CurSplitState { bounds, included_indexes, name }
+    }
+}
+
+fn build_complete_octree<S: AabbBoundedSurface + Clone + 'static>(items: &Vec<S>, target_leaf_size: usize) -> Split
+{
+    let info = BuildInfo::new(items, target_leaf_size);
+    let root_split = CurSplitState::new_root(&info);
+
+    let root_bounds = root_split.bounds.clone();
+    let root_tree = create_node(&info, root_split);
+
+    Split
+    {
+        bounds: root_bounds,
+        sub_tree: root_tree,
+    }
+}
+
+fn create_node<'a, S>(info: &BuildInfo<'a, S>, cur_split: CurSplitState) -> OctreeNode
+    where S: AabbBoundedSurface + Clone + 'static
+{
+    if cur_split.included_indexes.len() > info.target_leaf_size
+    {
+        let split_x = create_split_dim(info, &cur_split, "x", |v| v.x, |v, s| Point3::new(s, v.y, v.z));
+        let split_y = create_split_dim(info, &cur_split, "y", |v| v.y, |v, s| Point3::new(v.x, s, v.z));
+        let split_z = create_split_dim(info, &cur_split, "z", |v| v.z, |v, s| Point3::new(v.x, v.y, s));
+
+        //println!("CreateSplit: {} Summary x {:5}/{:5}/{:5} y {:5}/{:5}/{:5} z {:5}/{:5}/{:5}",
+        //    cur_split.name,
+        //    split_x.items_0.len(), split_x.items_1.len(), split_x.best_sum,
+        //    split_y.items_0.len(), split_y.items_1.len(), split_y.best_sum,
+        //    split_z.items_0.len(), split_z.items_1.len(), split_z.best_sum);
+
+        let best_split = if (split_x.best_sum <= split_y.best_sum) && (split_x.best_sum <= split_z.best_sum)
         {
-            return create_split(
-                triangles, tri_bounds, cur_bounds, &indexes_in_cur_bounds,
-            &format!("{}.y", name),
-                |v| v.y,
-                |v, s| Point3::new(v.x, s, v.z));
+            split_x
+        }
+        else if (split_y.best_sum <= split_x.best_sum) && (split_y.best_sum <= split_z.best_sum)
+        {
+            split_y
         }
         else
         {
-            return create_split(
-                triangles, tri_bounds, cur_bounds, &indexes_in_cur_bounds,
-            &format!("{}.z", name),
-                |v| v.z,
-                |v, s| Point3::new(v.x, v.y, s));
+            split_z
+        };
+
+        if best_split.made_progress
+        {
+            //println!("CreateSplit: {} Result: Split {}", cur_split.name, best_split.dim_name);
+
+            let sub_split_0 = cur_split.new_sub(best_split.dim_name, 0, best_split.bounds_0, best_split.items_0);
+            let sub_split_1 = cur_split.new_sub(best_split.dim_name, 1, best_split.bounds_1, best_split.items_1);
+
+            let bounds_0 = sub_split_0.bounds.clone();
+            let bounds_1 = sub_split_1.bounds.clone();
+
+            let node_0 = create_node(info, sub_split_0);
+            let node_1 = create_node(info, sub_split_1);
+
+            return OctreeNode::Split(vec![
+                Split { bounds: bounds_0, sub_tree: node_0 },
+                Split { bounds: bounds_1, sub_tree: node_1 },
+            ]);
         }
     }
 
-    //println!("Level: {} => Leaf {}", name, indexes_in_cur_bounds.len());
+    // Either:
+    // 1. The number of items is already below the target leaf size,
+    // 2. No good progress could be made
+    // Just return a leaf containing everything
 
-    OctreeNode::Leaf(indexes_in_cur_bounds)
+    //println!("CreateSplit: {} Result: Leaf", cur_split.name);
+
+    OctreeNode::Leaf(cur_split.included_indexes)
 }
 
-fn create_split<S, Extract, Combine>(triangles: &Vec<S>, tri_bounds: &Vec<Aabb>, cur_bounds: Aabb, indexes_in_cur_bounds: &Vec<usize>, name: &str, extract: Extract, combine: Combine) -> OctreeNode
-    where S: AabbBoundedSurface + Clone + 'static,
-        Extract: Fn(&Point3) -> Scalar,
-        Combine: Fn(&Point3, Scalar) -> Point3
+struct SplitOption
 {
-    let num_cur = indexes_in_cur_bounds.len();
+    made_progress: bool,
+    best_sum: usize,
+    dim_name: &'static str,
+    bounds_0: Aabb,
+    items_0: Vec<usize>,
+    bounds_1: Aabb,
+    items_1: Vec<usize>,
+}
 
-    //println!("Level: {} => Create split for {} in {:?}", name, num_cur, cur_bounds);
+#[derive(Default)]
+struct SplitDimPointInfo
+{
+    num_enter: usize,
+    num_leave: usize,
+}
 
-    let extract_min = extract(&cur_bounds.min);
-    let extract_max = extract(&cur_bounds.max);
-    let mid = extract_min + 0.5 * (extract_max - extract_min);
-    assert!(mid >= extract_min);
-    assert!(mid <= extract_max);
+fn create_split_dim<'a, S, Extract, Combine>(info: &BuildInfo<'a, S>, cur_split: &CurSplitState, dim_name: &'static str, extract: Extract, combine: Combine) -> SplitOption
+    where S: AabbBoundedSurface + Clone + 'static,
+        Extract: Fn(&Point3) -> Scalar + 'static,
+        Combine: Fn(&Point3, Scalar) -> Point3 + 'static
+{
+    let cur_split_min = extract(&cur_split.bounds.min);
+    let cur_split_max = extract(&cur_split.bounds.max);
+    let cur_split_num = cur_split.included_indexes.len();
 
-    let bounds_0 = Aabb::new(cur_bounds.min, combine(&cur_bounds.max, mid));
-    let bounds_1 = Aabb::new(combine(&cur_bounds.min, mid), cur_bounds.max);
+    // Calculate the extreme points for each item in the current split.
+    // When we put these in order:
+    // Items with the point as the bounds min will ENTER the set of contained objects as we get to that point.
+    // Items with the point as the bounds max will LEAVE the set of contained objects as we get to that point.
 
-    let indexes_in_0 = indexes_in_cur_bounds.iter()
-        .filter(|i| bounds_0.intersects(&tri_bounds[**i]))
-        .cloned()
-        .collect::<Vec<usize>>();
-    let indexes_in_1 = indexes_in_cur_bounds.iter()
-        .filter(|i| bounds_1.intersects(&tri_bounds[**i]))
-        .cloned()
-        .collect::<Vec<usize>>();
+    let mut point_info = HashMap::<FloatOrd<Scalar>, SplitDimPointInfo>::new();
 
-    let num_0 = indexes_in_0.len();
-    let num_1 = indexes_in_1.len();
-
-    //println!("Level: {} => split into {}/{}", name, num_0, num_1);
-
-    if (num_0 == 0) && (num_1 == num_cur)
+    for i in cur_split.included_indexes.iter()
     {
-        // Split 0 is is empty - just return split 1
-        return build_octree(triangles, tri_bounds, bounds_1, name);
+        let i_bounds = &info.item_bounds[*i];
+        let min = extract(&i_bounds.min);
+        let max = extract(&i_bounds.max);
+
+        point_info.entry(FloatOrd(min)).or_default().num_enter += 1;
+        point_info.entry(FloatOrd(max)).or_default().num_leave += 1;
     }
-    else if (num_0 == num_cur) && (num_1 == 0)
+
+    // Sort the bounds points into order
+
+    let mut points = point_info.keys().map(|fo| fo.0).collect_vec();
+    float_ord::sort(points.as_mut_slice());
+
+    //println!("CreateSplitDim: {}.{}: {} items, {} unique bounds, [{:8.3}..{:8.3}] (size {:8.3})",
+    //    cur_split.name, dim_name, cur_split.included_indexes.len(),
+    //    points.len(), points[0], points[points.len() - 1], points[points.len() - 1] - points[0]);
+
+    // Now - step through each item bounds point in order,
+    // 1. Collect the total number of items if we split at that point:
+    //    i.e. For each point, the number of items ENTERING are added to the after set,
+    //         and the number of items LEAVING are removed from the before set.
+    // 2. Work-out the best place to split - based on a huristic
+    //    Currently: Sum = Diff + Extra is lowest, where:
+    //               Diff = difference between number before split and number after split
+    //                      i.e. 0 when we exactly cut the number of objects in two.
+    //               Extra = number of objects duplicated into both before and after the split
+
+    let mut count_before = cur_split_num;
+    let mut count_after = 0;
+    let mut best_p = points[0];
+    let mut best_sum = usize::MAX;
+
+    for p in points.iter()
     {
-        // Split 1 is empty - just return split 0
-        return build_octree(triangles, tri_bounds, bounds_0, name);
+        let p_info = point_info.get(&FloatOrd(*p)).unwrap();
+
+        count_after += p_info.num_enter;
+        assert!(count_after <= cur_split_num);
+
+        let diff = count_before.max(count_after) - count_before.min(count_after);
+        assert!(diff <= cur_split_num);
+
+        let extra = count_before + count_after - cur_split_num;
+        assert!(extra <= cur_split_num);
+
+        let sum = diff + extra;
+
+        let new_best = sum < best_sum;
+        if new_best
+        {
+            best_p = *p;
+            best_sum = sum;
+        }
+
+        //println!("   {:8.3} => {:5} enter, {:5} leave, {:5} min-size, {:5} max-side, {:5} diff, {:5} extra, {:5} sum, {}", p, p_info.num_enter, p_info.num_leave, count_before, count_after, diff, extra, sum, new_best);
+
+        count_before -= p_info.num_leave;
+        assert!(count_before <= cur_split_num);
     }
-    else if (num_0 == num_cur) || (num_1 == num_cur)
+
+    // Ensure our accounting has worked our correctly
+
+    assert!(count_before == 0);
+    assert!(count_after == cur_split_num);
+
+    // Now - lets check if we think the split is worthwhile
+
+    if (best_p > cur_split_min)
+        && (best_p < cur_split_max)
+        && (best_sum < (cur_split_num / 2))
     {
-        // TODO - bad split - just return a leaf
-        return OctreeNode::Leaf(indexes_in_cur_bounds.clone());
+        // The split meets the following criteria:
+        // 1. It's actually a split within the current bounds
+        // 2. It makes some progress
+
+        let bounds_0 = Aabb::new(
+            cur_split.bounds.min,
+            combine(&cur_split.bounds.max, best_p));
+
+        let bounds_1 = Aabb::new(
+                combine(&cur_split.bounds.min, best_p),
+                cur_split.bounds.max);
+
+        let items_0 = cur_split.included_indexes.iter()
+            .cloned()
+            .filter(|i| bounds_0.intersects(&info.item_bounds[*i]))
+            .collect_vec();
+    
+        let items_1 = cur_split.included_indexes.iter()
+            .cloned()
+            .filter(|i| bounds_1.intersects(&info.item_bounds[*i]))
+            .collect_vec();
+
+        // Double check we have the same results
+
+        let num_0 = items_0.len();
+        let num_1 = items_1.len();
+        let diff = num_0.max(num_1) - num_0.min(num_1);
+        let extra = num_0 + num_1 - cur_split_num;
+        let final_sum = diff + extra;
+        assert!(final_sum == best_sum);
+    
+        return SplitOption
+        {
+            made_progress: true,
+            best_sum,
+            dim_name,
+            bounds_0,
+            items_0,
+            bounds_1,
+            items_1,
+        };
     }
 
-    // Looks like we have a valid split - create the two octrees below this
+    // The split doens't make good progress
 
-    let octree_0 = build_octree(triangles, tri_bounds, bounds_0.clone(), &format!("{}.0", name));
-    let octree_1 = build_octree(triangles, tri_bounds, bounds_1.clone(), &format!("{}.1", name));
-
-    let split_0 = Split{ bounds: bounds_0, sub_tree: octree_0, };
-    let split_1 = Split{ bounds: bounds_1, sub_tree: octree_1, };
-
-    OctreeNode::Split(vec![split_0, split_1])
+    return SplitOption
+    {
+        made_progress: false,
+        best_sum: usize::MAX,
+        dim_name,
+        bounds_0: cur_split.bounds.clone(),
+        items_0: cur_split.included_indexes.clone(),
+        bounds_1: cur_split.bounds.clone(),
+        items_1: Vec::new(),
+    };
 }
