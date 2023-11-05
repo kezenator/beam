@@ -631,8 +631,42 @@ fn parse_tokens<'a>(input: &'a str) -> ExecResult<Vec<Token<'a>>>
             
             result.push(lexer.take_token(TokenKind::Operator));
         }
+        else if ch == '/'
+        {
+            // Can be divide - or start a comment
+
+            lexer.accept_char();
+
+            if lexer.peek() == '/'
+            {
+                // Ignore up until the new line
+                lexer.accept_char();
+
+                loop
+                {
+                    if lexer.finished()
+                    {
+                        break;
+                    }
+                    else if lexer.peek() == '\n'
+                    {
+                        lexer.accept_char();
+                        break;
+                    }
+                    else
+                    {
+                        lexer.accept_char();                        
+                    }
+                }
+                lexer.ignore_token();
+            }
+            else // Divide operator
+            {
+                result.push(lexer.take_token(TokenKind::Operator));
+            }
+        }
         else if ch == '+' || ch == '-'
-            || ch == '*' || ch == '/'
+            || ch == '*'
             || ch == '(' || ch == ')'
             || ch == '{' || ch == '}'
             || ch == '<' || ch == '>'
@@ -657,6 +691,7 @@ fn parse_tokens<'a>(input: &'a str) -> ExecResult<Vec<Token<'a>>>
                 if ch == '\"'
                 {
                     result.push(lexer.take_token(TokenKind::String));
+                    // Ignore the close
                     lexer.accept_char();
                     lexer.ignore_token();
                     break;
