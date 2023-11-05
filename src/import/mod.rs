@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+pub mod gltf;
 pub mod image;
 pub mod obj;
 
@@ -16,6 +17,11 @@ impl FileSystemContext
     pub fn new() -> Self
     {
         FileSystemContext { cwd: std::env::current_dir().unwrap_or(PathBuf::new()) }
+    }
+
+    pub fn path_to_filename(&self, path: &str) -> String
+    {
+        PathBuf::from(path).file_name().map(|s| s.to_string_lossy()).map(|s| s.to_string()).unwrap_or_default()
     }
 
     pub fn load_text_file(&self, filename: &str) -> Result<(String, FileSystemContext), ImportError>

@@ -313,6 +313,30 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
     ));
 
     funcs.push(Function::new_inbuilt(
+        "load_gltf".to_owned(),
+        vec!["path".to_owned(), "destination".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let path = context.get_param_named("path")?;
+            let source_location = path.source_location();
+            let path = path.into_string()?;
+
+            let destination = context.get_param_named("destination")?.into_aabb()?;
+
+            context.with_app_state::<Scene, _, _>(|scene|
+                {
+                    import::gltf::import_gltf_file(&path, &destination, scene)
+                        .map_err(|i| ExecError::new(source_location, i.0))?;
+
+                    Ok(())
+                })?;
+
+            Ok(Value::new_void())
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
         "texture_checkerboard".to_owned(),
         vec!["a".to_owned(), "b".to_owned()],
         root_context,
