@@ -26,7 +26,7 @@ impl Image
 
         let color = image.get_pixel(x, y);
 
-        SRGB::new(color.0[0] as Scalar, color.0[1] as Scalar, color.0[2] as Scalar)
+        SRGB::new(color.0[0] as Scalar, color.0[1] as Scalar, color.0[2] as Scalar, color.0[3] as Scalar)
     }
 
     pub fn new_empty(w: u32, h: u32) -> Self

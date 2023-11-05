@@ -135,7 +135,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
             if let Some(spec_glossy) = material.pbr_specular_glossiness()
             {
                 let diffuse = spec_glossy.diffuse_factor();
-                let diffuse = SRGB::new(diffuse[0] as Scalar, diffuse[1] as Scalar, diffuse[2] as Scalar);
+                let diffuse = SRGB::new(diffuse[0] as Scalar, diffuse[1] as Scalar, diffuse[2] as Scalar, diffuse[3] as Scalar);
 
                 let texture = match spec_glossy.diffuse_texture()
                 {

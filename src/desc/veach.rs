@@ -44,7 +44,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 
         objects.push(Object::new(
             walls,
-            Material::diffuse(Texture::solid(SRGB::new(1.0, 1.0, 1.0)))));
+            Material::diffuse(Texture::solid(SRGB::new(1.0, 1.0, 1.0, 1.0)))));
     }
 
     // Light
@@ -55,7 +55,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 
         objects.push(Object::new(
             Rectangle::new(pos - d1 - d2, 2.0 * d1, 2.0 * d2),
-            Material::emit_front_face_only(Texture::solid(SRGB::new(4.0, 4.0, 4.0)))));
+            Material::emit_front_face_only(Texture::solid(SRGB::new(4.0, 4.0, 4.0, 1.0)))));
 
         lighting_region.global_surfaces.push(Box::new(Rectangle::new(pos - d1 - d2, 2.0 * d1, 2.0 * d2)));
         lighting_region.local_points.push(pos);
@@ -79,13 +79,13 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
         };
 
         // The four colored lights
-        light(-10.0, LIGHT_Y, LIGHT_Z, 0.2, SRGB::new(1.0, 0.0, 0.0));
-        light(-5.0, LIGHT_Y, LIGHT_Z, 1.0, SRGB::new(0.0, 1.0, 0.0));
-        light(2.0, LIGHT_Y, LIGHT_Z, 2.0, SRGB::new(0.0, 0.0, 1.0));
-        light(12.0, LIGHT_Y, LIGHT_Z, 4.0, SRGB::new(1.0, 1.0, 0.0));
+        light(-10.0, LIGHT_Y, LIGHT_Z, 0.2, SRGB::new(1.0, 0.0, 0.0, 1.0));
+        light(-5.0, LIGHT_Y, LIGHT_Z, 1.0, SRGB::new(0.0, 1.0, 0.0, 1.0));
+        light(2.0, LIGHT_Y, LIGHT_Z, 2.0, SRGB::new(0.0, 0.0, 1.0, 1.0));
+        light(12.0, LIGHT_Y, LIGHT_Z, 4.0, SRGB::new(1.0, 1.0, 0.0, 1.0));
 
         // The wall light
-        light(0.0, 9.5, 12.0, 0.3, SRGB::new(10.0, 10.0, 10.0));
+        light(0.0, 9.5, 12.0, 0.3, SRGB::new(10.0, 10.0, 10.0, 1.0));
 
         objects.push(Object::new(
             BoundedSurface::new(
@@ -93,7 +93,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
                 Difference::new(
                     Aabb::new(Point3::new(-1.0, 9.0, 11.0), Point3::new(1.0, 10.0, 13.0)),
                     Aabb::new(Point3::new(-0.8, 9.2, 10.5), Point3::new(0.8, 10.1, 13.5)))),
-            Material::diffuse(Texture::solid(SRGB::new(0.5, 0.5, 0.5)))));
+            Material::diffuse(Texture::solid(SRGB::new(0.5, 0.5, 0.5, 1.0)))));
     }
 
     // Metal bars
@@ -118,7 +118,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 
             objects.push(Object::new(
                 Rectangle::new(Point3::new(-14.0, y1, z1), Dir3::new(28.0, 0.0, 0.0), Dir3::new(0.0, dy, dz)),
-                Material::metal(Texture::solid(SRGB::new(0.5, 0.5, 0.5)), fuzz)));
+                Material::metal(Texture::solid(SRGB::new(0.5, 0.5, 0.5, 1.0)), fuzz)));
         };
 
         metal_bar(0.0, 1.0, 0.1);

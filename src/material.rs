@@ -93,7 +93,7 @@ impl Material
                     Face::Back =>
                         MaterialInteraction::Diffuse
                         {
-                            diffuse_color: LinearRGB::new(0.0, 0.0, 0.0),
+                            diffuse_color: LinearRGB::new(0.0, 0.0, 0.0, 1.0),
                         },
                 }
             },

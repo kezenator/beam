@@ -129,7 +129,22 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let g = context.get_param_named("g")?.into_scalar()?;
             let b = context.get_param_named("b")?.into_scalar()?;
 
-            Ok(Value::new_color(context.get_call_site(), SRGB::new(r, g, b).into()))
+            Ok(Value::new_color(context.get_call_site(), SRGB::new(r, g, b, 1.0).into()))
+        }
+    ));
+
+    funcs.push(Function::new_inbuilt(
+        "rgba".to_owned(),
+        vec!["r".to_owned(), "g".to_owned(), "b".to_owned(), "a".to_owned()],
+        root_context,
+        |context: &mut Context|
+        {
+            let r = context.get_param_named("r")?.into_scalar()?;
+            let g = context.get_param_named("g")?.into_scalar()?;
+            let b = context.get_param_named("b")?.into_scalar()?;
+            let a = context.get_param_named("a")?.into_scalar()?;
+
+            Ok(Value::new_color(context.get_call_site(), SRGB::new(r, g, b, a).into()))
         }
     ));
 

@@ -215,7 +215,7 @@ impl ResourceLoader
         }
 
         // Return the 'none' material
-        let texture = scene.textures.push(Texture::Solid(SRGB::new(1.0, 1.0, 1.0).into()));
+        let texture = scene.textures.push(Texture::Solid(SRGB::new(1.0, 1.0, 1.0, 1.0).into()));
         let result = scene.materials.push(Material::Diffuse{ texture });
         self.imported_materials.insert(None, result);
         Ok(result)

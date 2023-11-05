@@ -20,7 +20,7 @@ impl Material
         Material
         {
             name,
-            diffuse: SRGB::new(1.0, 1.0, 1.0),
+            diffuse: SRGB::new(1.0, 1.0, 1.0, 1.0),
             disolve: None,
             ior: None,
             diffuse_map: None,
@@ -60,7 +60,7 @@ pub fn parse<'a>(contents: &'a str, filename: &'a str) -> Result<MaterialFile, I
                 let diffuse = parser.parse_line_vector()?;
 
                 let last_material_index = materials.len() - 1;
-                materials[last_material_index].diffuse = SRGB::new(diffuse.0, diffuse.1, diffuse.2);
+                materials[last_material_index].diffuse = SRGB::new(diffuse.0, diffuse.1, diffuse.2, 1.0);
             },
             "Ni" =>
             {

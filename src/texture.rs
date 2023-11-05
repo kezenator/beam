@@ -76,11 +76,11 @@ impl Texture
 
                     if val.is_sign_positive()
                     {
-                        LinearRGB::new(1.0, 0.5, 0.2).multiplied_by_scalar(prod)
+                        LinearRGB::new(1.0, 0.5, 0.2, 1.0).multiplied_by_scalar(prod)
                     }
                     else
                     {
-                        LinearRGB::new(0.1, 0.6, 0.8).multiplied_by_scalar(prod)
+                        LinearRGB::new(0.1, 0.6, 0.8, 1.0).multiplied_by_scalar(prod)
                     }
                 }
             }

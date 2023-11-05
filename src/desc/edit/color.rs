@@ -13,7 +13,7 @@ impl Color
     {
         Color
         {
-            linear: LinearRGB::new(0.0, 0.0, 0.0),
+            linear: LinearRGB::new(0.0, 0.0, 0.0, 1.0),
         }
     }
 
@@ -43,7 +43,7 @@ impl Default for Color
 {
     fn default() -> Self
     {
-        Self { linear: LinearRGB::new(0.0, 0.0, 0.0), }
+        Self { linear: LinearRGB::new(0.0, 0.0, 0.0, 1.0), }
     }
 }
 
@@ -51,8 +51,8 @@ impl UiDisplay for Color
 {
     fn ui_display(&self, ui: &UiRenderer, label: &str)
     {
-        let mut slice: [f32; 3] = self.linear.to_srgb().into();
-        ui.imgui.color_edit3_config(label, &mut slice).inputs(false).build();
+        let mut slice: [f32; 4] = self.linear.to_srgb().into();
+        ui.imgui.color_edit4_config(label, &mut slice).inputs(false).preview(imgui::ColorPreview::HalfAlpha).build();
     }
 }
 
@@ -60,8 +60,8 @@ impl UiEdit for Color
 {
     fn ui_edit(&mut self, ui: &UiRenderer, label: &str) -> bool
     {
-        let mut slice: [f32; 3] = self.linear.to_srgb().into();
-        if ui.imgui.color_edit3(label, &mut slice)
+        let mut slice: [f32; 4] = self.linear.to_srgb().into();
+        if ui.imgui.color_edit4_config(label, &mut slice).preview(imgui::ColorPreview::HalfAlpha).build()
         {
             let srgb: SRGB = slice.into();
             (*self).linear = srgb.into();
