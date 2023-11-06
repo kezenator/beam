@@ -90,9 +90,9 @@ impl Surface for Triangle
             let w = 1.0 - u - v;
 
             let texture_coords =
-                self.t0 * u
-                + self.t1 * v
-                + self.t2 * w;
+                self.t0 * w
+                + self.t1 * u
+                + self.t2 * v;
 
             return Some(ray.new_intersection_with_texture_coords(
                 t,
