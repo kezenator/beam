@@ -192,7 +192,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let radius = context.get_param_named("radius")?.into_scalar()?;
 
             let geom = Geom::Sphere{ center, radius };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
@@ -264,7 +264,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let point = context.get_param_named("point")?.into_vec3()?;
             let normal = context.get_param_named("normal")?.into_vec3()?;
             let geom = Geom::Plane{ point, normal };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
@@ -280,7 +280,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let v2 = TriangleVertex{ location: context.get_param_named("v2")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), };
             let v3 = TriangleVertex{ location: context.get_param_named("v3")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), };
             let geom = Geom::Triangle{triangle: Triangle { vertices: [v1, v2, v3]}};
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
@@ -321,7 +321,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let path = path.into_string()?;
 
             let geom = import::obj::import_obj_file_as_triangle_mesh(&path).map_err(|i| ExecError::new(source_location, i.0))?;
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.geom.push(geom)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
@@ -361,7 +361,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let b = context.get_param_named("b")?.into_color()?;
 
             let texture = Texture::Checkerboard(a, b);
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.textures.push(texture)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(texture)))?;
 
             Ok(Value::new_texture(context.get_call_site(), index))
         }
@@ -387,7 +387,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         {
             let ior = context.get_param_named("ior")?.into_scalar()?;
             let material = Material::Dielectric{ ior };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
@@ -401,7 +401,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         {
             let texture = context.get_param_named("texture")?.into_texture(context)?;
             let material = Material::Diffuse{ texture };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
@@ -415,7 +415,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         {
             let texture = context.get_param_named("texture")?.into_texture(context)?;
             let material = Material::Emit{ texture };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
@@ -430,7 +430,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let texture = context.get_param_named("texture")?.into_texture(context)?;
             let fuzz = context.get_param_named("fuzz")?.into_scalar()?;
             let material = Material::Metal{ texture, fuzz };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.materials.push(material)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
@@ -445,7 +445,7 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
             let geom = context.get_param_named("geometry")?.into_geom()?;
             let material = context.get_param_named("material")?.into_material()?;
             let object = Object{ geom, material };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.objects.push(object)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(object)))?;
 
             Ok(Value::new_object(context.get_call_site(), index))
         }

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::desc::edit::Color;
-use crate::indexed::{IndexedValue, AnyIndex};
+use crate::indexed::{IndexedValue, AnyIndex, TextureIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::import::image::Image;
 
@@ -75,6 +75,8 @@ impl Default for Texture
 
 impl IndexedValue for Texture
 {
+    type Index = TextureIndex;
+    
     fn collect_indexes(&self, _indexes: &mut HashSet<AnyIndex>)
     {
     }

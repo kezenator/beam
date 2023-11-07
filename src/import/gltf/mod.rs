@@ -102,8 +102,8 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
                         let material = import_material(&primitive_state, primitive.material())?;
 
                         let mut state = primitive_state.state.borrow_mut();
-                        let geom = state.scene.geom.push(Geom::Mesh{ triangles, transform: Transform::new() });
-                        let _obj = state.scene.objects.push(Object{ geom, material });
+                        let geom = state.scene.collection.push(Geom::Mesh{ triangles, transform: Transform::new() });
+                        let _obj = state.scene.collection.push(Object{ geom, material });
                     }
                 },
                 _ =>
@@ -142,7 +142,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
                     None =>
                     {
                         let mut state = material_state.state.borrow_mut();
-                        Ok(state.scene.textures.push(Texture::Solid(diffuse.into())))
+                        Ok(state.scene.collection.push(Texture::Solid(diffuse.into())))
                     },
                     Some(image_info) =>
                     {
@@ -155,7 +155,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
                     },
                 }?;
                 let mut state = material_state.state.borrow_mut();
-                let added_index = state.scene.materials.push(Material::Diffuse{ texture });
+                let added_index = state.scene.collection.push(Material::Diffuse{ texture });
                 state.materials.insert(index, added_index.clone());
                 Ok(added_index)
             }
@@ -183,7 +183,7 @@ fn import_image(parent_state: &ScopedState, image: gltf::Image) -> Result<Textur
             let mut state = texture_state.state.borrow_mut();
             let image = import::image::import_image(uri, &mut state.fs_context)?;
 
-            Ok(state.scene.textures.push(Texture::Image(image)))
+            Ok(state.scene.collection.push(Texture::Image(image)))
         },
     }
 }

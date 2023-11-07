@@ -195,7 +195,7 @@ impl Value
         match self.data
         {
             ValueData::Texture(texture) => Ok(texture),
-            ValueData::Color(color) => Ok(context.with_app_state::<Scene, _, _>(|scene| Ok(scene.textures.push(Texture::Solid(color))))?),
+            ValueData::Color(color) => Ok(context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(Texture::Solid(color))))?),
             _ => Err(self.type_error("Texture")),
         }
     }

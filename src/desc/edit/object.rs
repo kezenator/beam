@@ -1,6 +1,5 @@
 use std::collections::HashSet;
-use crate::{indexed::{IndexedValue, GeomIndex, MaterialIndex}, ui::{UiDisplay, UiRenderer}, ui::UiEdit};
-use super::Scene;
+use crate::{indexed::{IndexedValue, GeomIndex, MaterialIndex, ObjectIndex, IndexedCollection}, ui::{UiDisplay, UiRenderer}, ui::UiEdit};
 
 #[derive(Clone, Debug, Default)]
 pub struct Object
@@ -11,16 +10,18 @@ pub struct Object
 
 impl Object
 {
-    pub fn build(&self, scene: &Scene) -> crate::object::Object
+    pub fn build(&self, collection: &IndexedCollection) -> crate::object::Object
     {
         crate::object::Object::new_boxed(
-            scene.build_surface(self.geom),
-            scene.build_material(self.material))
+            collection.map_item(self.geom, |geom, _| geom.build_surface()),
+            collection.map_item(self.material, |material, collection| material.build(collection)))
     }
 }
 
 impl IndexedValue for Object
 {
+    type Index = ObjectIndex;
+    
     fn collect_indexes(&self, _indexes: &mut HashSet<crate::indexed::AnyIndex>)
     {
     }

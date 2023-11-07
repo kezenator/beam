@@ -33,9 +33,9 @@ pub fn import_obj_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Res
 
             push_geom_triangles(&obj_file, &geom, &mut triangles);
 
-            let geom = scene.geom.push(Geom::Mesh { triangles, transform: transform.clone() });
+            let geom = scene.collection.push(Geom::Mesh { triangles, transform: transform.clone() });
 
-            scene.objects.push(Object { geom, material });
+            scene.collection.push(Object { geom, material });
         }
     }
 
@@ -116,17 +116,12 @@ fn calc_transform(vertices: &Vec<obj_file::Vector>, destination: &Aabb) -> Trans
             (a.0.max(b.0), a.1.max(b.1), a.2.max(b.2))
         });
 
-        let dim_src = (max_src.0 - min_src.0, max_src.1 - min_src.1, max_src.2 - min_src.2);
-        let max_dim_src = dim_src.0.max(dim_src.1).max(dim_src.2);
-
-        let dim_dest = destination.max - destination.min;
-
-        let min_dim_dest = dim_dest.x.min(dim_dest.y).min(dim_dest.z);
-
-        result.stages.push(TransformStage::Translate(Point3::new(-min_src.0, -min_src.1, -min_src.2)));
-        result.stages.push(TransformStage::Scale(1.0 / max_dim_src));
-        result.stages.push(TransformStage::Scale(min_dim_dest));
-        result.stages.push(TransformStage::Translate(destination.min));
+        result.stages.push(TransformStage::ShiftAndScale
+            {
+                from: crate::desc::edit::geom::Aabb{ min: Point3::new(min_src.0, min_src.1, min_src.2), max: Point3::new(max_src.0, max_src.1, max_src.2) },
+                to: crate::desc::edit::geom::Aabb{ min: destination.min, max: destination.max },
+                maintain_aspect: true,
+            });
     }
 
     result
@@ -186,7 +181,7 @@ impl ResourceLoader
                     if disolve < 1.0
                     {
                         // Use a dielectric
-                        let result = scene.materials.push(Material::Dielectric { ior });
+                        let result = scene.collection.push(Material::Dielectric { ior });
                         self.imported_materials.insert(Some(name.clone()), result);
                         return Ok(result);
                     }
@@ -197,15 +192,15 @@ impl ResourceLoader
                 let texture = if let Some(path) = mtl.diffuse_map
                 {
                     let image = self.load_image(&path)?;
-                    scene.textures.push(Texture::Image(image))
+                    scene.collection.push(Texture::Image(image))
                 }
                 else
                 {
                     // Solid color
-                    scene.textures.push(Texture::Solid(mtl.diffuse.into()))
+                    scene.collection.push(Texture::Solid(mtl.diffuse.into()))
                 };
 
-                let result = scene.materials.push(Material::Diffuse{ texture });
+                let result = scene.collection.push(Material::Diffuse{ texture });
                 self.imported_materials.insert(Some(name.clone()), result);
                 return Ok(result);
             }
@@ -215,8 +210,8 @@ impl ResourceLoader
         }
 
         // Return the 'none' material
-        let texture = scene.textures.push(Texture::Solid(SRGB::new(1.0, 1.0, 1.0, 1.0).into()));
-        let result = scene.materials.push(Material::Diffuse{ texture });
+        let texture = scene.collection.push(Texture::Solid(SRGB::new(1.0, 1.0, 1.0, 1.0).into()));
+        let result = scene.collection.push(Material::Diffuse{ texture });
         self.imported_materials.insert(None, result);
         Ok(result)
     }

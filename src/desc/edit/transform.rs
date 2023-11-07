@@ -1,12 +1,14 @@
 use crate::math::Scalar;
+use crate::desc::edit::geom::Aabb;
 use crate::ui::{UiDisplay, UiEdit, UiTaggedEnum};
-use crate::vec::{Vec3, Mat4};
+use crate::vec::{Vec3, Mat4, Point3};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TransformStageTag
 {
     Scale,
     Translate,
+    ShiftAndScale,
 }
 
 #[derive(Debug, Clone)]
@@ -14,6 +16,7 @@ pub enum TransformStage
 {
     Scale(Scalar),
     Translate(Vec3),
+    ShiftAndScale{from: Aabb, to: Aabb, maintain_aspect: bool},
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +48,29 @@ impl Transform
                 {
                     result.translate_3d(*offset);
                 },
+                TransformStage::ShiftAndScale { from, to, maintain_aspect } =>
+                {
+                    let from_min = Point3::new(from.min.x.min(from.max.x), from.min.y.min(from.max.y), from.min.z.min(from.max.z));
+                    let from_max = Point3::new(from.min.x.max(from.max.x), from.min.y.max(from.max.y), from.min.z.max(from.max.z));
+                    let from_dim = Point3::new(from_max.x - from_min.x, from_max.y - from_min.y, from_max.z - from_min.z);
+
+                    let to_min = Point3::new(to.min.x.min(to.max.x), to.min.y.min(to.max.y), to.min.z.min(to.max.z));
+                    let to_max = Point3::new(to.min.x.max(to.max.x), to.min.y.max(to.max.y), to.min.z.max(to.max.z));
+                    let to_dim = Point3::new(to_max.x - to_min.x, to_max.y - to_min.y, to_max.z - to_min.z);
+
+                    let mut scale = Point3::new(to_dim.x / from_dim.x, to_dim.y / from_dim.y, to_dim.z / from_dim.z);
+
+                    if *maintain_aspect
+                    {
+                        let scale_min = scale.x.min(scale.y).min(scale.z);
+
+                        scale = Point3::new(scale_min, scale_min, scale_min);
+                    }
+
+                    result.translate_3d(-from_min - (0.5 * from_dim));
+                    result.scale_3d(scale);
+                    result.translate_3d(to_min + (0.5 * to_dim));
+                }
             }
         }
 
@@ -67,6 +93,7 @@ impl UiTaggedEnum for TransformStage
         {
             TransformStageTag::Scale => "Scale",
             TransformStageTag::Translate => "Translate",
+            TransformStageTag::ShiftAndScale => "Shift and Scale",
         }
     }
 
@@ -76,6 +103,7 @@ impl UiTaggedEnum for TransformStage
         {
             TransformStageTag::Scale => TransformStage::Scale(1.0),
             TransformStageTag::Translate => TransformStage::Translate(Vec3::new(0.0, 0.0, 0.0)),
+            TransformStageTag::ShiftAndScale => TransformStage::ShiftAndScale { from: Aabb::default(), to: Aabb::default(), maintain_aspect: true },
         }
     }
 
@@ -85,6 +113,7 @@ impl UiTaggedEnum for TransformStage
         {
             TransformStage::Scale(_) => TransformStageTag::Scale,
             TransformStage::Translate(_) => TransformStageTag::Translate,
+            TransformStage::ShiftAndScale{..} => TransformStageTag::ShiftAndScale,
         }
     }
 }
@@ -98,6 +127,16 @@ impl UiDisplay for TransformStage
         {
             TransformStage::Scale(scale) => ui.display_float("Scale", scale),
             TransformStage::Translate(offset) => ui.display_vec3("Translate", offset),
+            TransformStage::ShiftAndScale{ from, to, maintain_aspect } =>
+            {
+                ui.display_vec3("Source Aabb (min)", &from.min);
+                ui.display_vec3("Source Aabb (max)", &from.max);
+                ui.display_vec3("Dest Aabb (min)", &to.min);
+                ui.display_vec3("Dest Aabb (max)", &to.max);
+
+                let mut maintain_aspect = *maintain_aspect;
+                ui.imgui.checkbox("Maintain Aspect Ratio", &mut maintain_aspect);
+            },
         }
     }
 }
@@ -118,6 +157,14 @@ impl UiEdit for TransformStage
             TransformStage::Translate(offset) =>
             {
                 result |= ui.edit_vec3("Offset", offset);
+            },
+            TransformStage::ShiftAndScale{ from, to, maintain_aspect } =>
+            {
+                result |= ui.edit_vec3("Source Aabb (min)", &mut from.min);
+                result |= ui.edit_vec3("Source Aabb (max)", &mut from.max);
+                result |= ui.edit_vec3("Dest Aabb (min)", &mut to.min);
+                result |= ui.edit_vec3("Dest Aabb (max)", &mut to.max);
+                result |= ui.imgui.checkbox("Maintain Aspect Ratio", maintain_aspect);
             },
         }
 

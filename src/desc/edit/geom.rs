@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::geom::Surface;
-use crate::indexed::{IndexedValue, AnyIndex};
+use crate::indexed::{IndexedValue, AnyIndex, GeomIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::vec::{Dir3, Point3, Vec3};
 use crate::math::Scalar;
@@ -62,10 +62,26 @@ impl Default for Triangle
 }
 
 #[derive(Clone, Debug)]
+pub struct Aabb
+{
+    pub min: Point3,
+    pub max: Point3,
+}
+
+impl Default for Aabb
+{
+    fn default() -> Self
+    {
+        Aabb { min: Point3::new(0.0, 0.0, 0.0), max: Point3::new(1.0, 1.0, 1.0) }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum Geom
 {
     Sphere{center: Point3, radius: Scalar},
     Plane{point: Point3, normal: Dir3},
+    Box{aabb: Aabb},
     Triangle{triangle: Triangle},
     Mesh{triangles: Vec<Triangle>, transform: Transform},
 }
@@ -78,6 +94,7 @@ impl Geom
         {
             Geom::Sphere{center, radius} => Box::new(crate::geom::Sphere::new(*center, *radius)),
             Geom::Plane{point, normal} => Box::new(crate::geom::Plane::new(*point, *normal)),
+            Geom::Box{aabb} => Box::new(crate::geom::Aabb::new(aabb.min, aabb.max)),
             Geom::Triangle{triangle} => Box::new(triangle.build()),
             Geom::Mesh{triangles, transform} =>
             {
@@ -95,6 +112,7 @@ impl Geom
         {
             Geom::Sphere{..} => "Sphere",
             Geom::Plane{..} => "Plane",
+            Geom::Box{..} => "Box",
             Geom::Triangle{..} => "Triangle",
             Geom::Mesh{..} => "Mesh",
         }
@@ -109,6 +127,7 @@ impl Geom
             for entry in [
                 Geom::Sphere{center: Point3::new(0.0, 0.0, 0.0), radius: 0.0},
                 Geom::Plane{point: Point3::new(0.0, 0.0, 0.0), normal: Dir3::new(0.0, 1.0, 0.0)},
+                Geom::Box{aabb: Aabb::default() },
                 Geom::Triangle{triangle: Triangle::default()},
                 Geom::Mesh{triangles: vec![Triangle::default()], transform: Transform::new()},
             ]
@@ -142,6 +161,8 @@ impl Default for Geom
 
 impl IndexedValue for Geom
 {
+    type Index = GeomIndex;
+    
     fn collect_indexes(&self, _indexes: &mut HashSet<AnyIndex>)
     {
     }
@@ -170,6 +191,12 @@ impl UiDisplay for Geom
                 ui.display_vec3("Point", point);
                 ui.display_vec3("Normal", normal);
             },
+            Geom::Box{aabb} =>
+            {
+                ui.imgui.label_text(label, "Box");
+                ui.display_vec3("Min", &aabb.min);
+                ui.display_vec3("Max", &aabb.max);
+            }
             Geom::Triangle{triangle} =>
             {
                 ui.imgui.label_text(label, "Triangle");
@@ -209,6 +236,11 @@ impl UiEdit for Geom
                 result |= ui.edit_vec3("Point", point);
                 result |= ui.edit_vec3("Normal", normal);
             },
+            Geom::Box{aabb} =>
+            {
+                result |= ui.edit_vec3("Min", &mut aabb.min);
+                result |= ui.edit_vec3("Max", &mut aabb.max);
+            }
             Geom::Triangle{triangle} =>
             {
                 result |= ui.edit_vec3("V1", &mut triangle.vertices[0].location);

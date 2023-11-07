@@ -1,9 +1,8 @@
 use std::collections::HashSet;
 
-use crate::indexed::{Index, IndexedValue, AnyIndex, TextureIndex};
+use crate::indexed::{Index, IndexedCollection, IndexedValue, AnyIndex, MaterialIndex, TextureIndex};
 use crate::math::Scalar;
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
-use super::Scene;
 
 #[derive(Clone, Debug)]
 pub enum Material
@@ -16,14 +15,14 @@ pub enum Material
 
 impl Material
 {
-    pub fn build(&self, scene: &Scene) -> crate::material::Material
+    pub fn build(&self, collection: &IndexedCollection) -> crate::material::Material
     {
         match self
         {
             Material::Dielectric{ior} => crate::material::Material::Dielectric(*ior),
-            Material::Diffuse{texture} => crate::material::Material::Diffuse(scene.build_texture(*texture)),
-            Material::Emit{texture} => crate::material::Material::Emit(scene.build_texture(*texture)),
-            Material::Metal{texture, fuzz} => crate::material::Material::Metal(scene.build_texture(*texture), *fuzz),
+            Material::Diffuse{texture} => crate::material::Material::Diffuse(collection.map_item(*texture, |texture, _| texture.build())),
+            Material::Emit{texture} => crate::material::Material::Emit(collection.map_item(*texture, |texture, _| texture.build())),
+            Material::Metal{texture, fuzz} => crate::material::Material::Metal(collection.map_item(*texture, |texture, _| texture.build()), *fuzz),
         }
     }
 
@@ -80,6 +79,8 @@ impl Default for Material
 
 impl IndexedValue for Material
 {
+    type Index = MaterialIndex;
+    
     fn collect_indexes(&self, _indexes: &mut HashSet<AnyIndex>)
     {
     }

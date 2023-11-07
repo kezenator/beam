@@ -1,6 +1,5 @@
-use crate::geom::Surface;
-use crate::indexed::{IndexedVec, GeomIndex, ObjectIndex, TextureIndex, MaterialIndex};
-use crate::desc::edit::{Camera, Geom, Material, Object, Texture};
+use crate::indexed::{IndexedCollection, GeomIndex, ObjectIndex, TextureIndex, MaterialIndex};
+use crate::desc::edit::{Camera, Object};
 use crate::render::RenderOptions;
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 
@@ -8,10 +7,7 @@ use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 pub struct Scene
 {
     pub camera: Camera,
-    pub textures: IndexedVec<TextureIndex, Texture>,
-    pub materials: IndexedVec<MaterialIndex, Material>,
-    pub geom: IndexedVec<GeomIndex, Geom>,
-    pub objects: IndexedVec<ObjectIndex, Object>,
+    pub collection: IndexedCollection,
 }
 
 impl Scene
@@ -19,55 +15,29 @@ impl Scene
     pub fn new() -> Self
     {
         let camera = Camera::default();
-        let textures = IndexedVec::new();
-        let materials = IndexedVec::new();
-        let geom = IndexedVec::new();
-        let objects = IndexedVec::new();
+        let mut collection = IndexedCollection::new();
+        collection.add_index::<TextureIndex>("Textures");
+        collection.add_index::<MaterialIndex>("Materials");
+        collection.add_index::<GeomIndex>("Geometry");
+        collection.add_index::<ObjectIndex>("Objects");
 
         Scene
         {
             camera,
-            textures,
-            materials,
-            geom,
-            objects,
+            collection,
         }
     }
 
     pub fn build(&self, options: &RenderOptions, camera_override: Option<&Camera>) -> crate::scene::Scene
     {
-        let mut objects = Vec::new();
-
-        for obj in self.objects.iter()
-        {
-            objects.push(obj.build(self));
-        }
+        let objects = self.collection
+            .map_all(|obj: &Object, collection| obj.build(collection));
 
         crate::scene::Scene::new(
             options.sampling_mode,
             camera_override.unwrap_or(&self.camera).build(options),
             Vec::new(),
             objects)
-    }
-
-    pub fn build_texture(&self, index: TextureIndex) -> crate::texture::Texture
-    {
-        self.textures.get(index).build()
-    }
-
-    pub fn build_material(&self, index: MaterialIndex) -> crate::material::Material
-    {
-        self.materials.get(index).build(self)
-    }
-
-    pub fn build_surface(&self, index: GeomIndex) -> Box<dyn Surface>
-    {
-        self.geom.get(index).build_surface()
-    }
-
-    pub fn build_obj(&self, index: ObjectIndex) -> crate::object::Object
-    {
-        self.objects.get(index).build(self)
     }
 }
 
@@ -81,10 +51,7 @@ impl UiDisplay for Scene
             .push()
         {
             self.camera.ui_display(ui, "Camera");
-            self.textures.ui_display(ui, "Textures");
-            self.materials.ui_display(ui, "Materials");
-            self.geom.ui_display(ui, "Geometry");
-            self.objects.ui_display(ui, "Objects");
+            self.collection.ui_display(ui, "Collections");
         }
     }
 }
@@ -101,10 +68,7 @@ impl UiEdit for Scene
             .push()
         {
             result |= self.camera.ui_edit(ui, "Camera");
-            result |= self.textures.ui_edit(ui, "Textures");
-            result |= self.materials.ui_edit(ui, "Materials");
-            result |= self.geom.ui_edit(ui, "Geometry");
-            result |= self.objects.ui_edit(ui, "Objects");
+            result |= self.collection.ui_edit(ui, "Collections");
         }
 
         result
