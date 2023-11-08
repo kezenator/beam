@@ -3,6 +3,7 @@ use std::collections::{HashSet, HashMap};
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 use imgui::TreeNodeFlags;
@@ -111,6 +112,60 @@ impl Index for ObjectIndex
     }
 }
 
+pub trait IndexedCollectionVTable
+{
+    fn clone_vtable(&self) -> Box<dyn IndexedCollectionVTable>;
+    fn clone_vec(&self, vec: &Box<dyn Any + Send>) -> Box<dyn Any + Send>;
+    fn ui_display(&self, ui: &UiRenderer, label: &str, vec: &Box<dyn Any + Send>);
+    fn ui_edit(&self, ui: &UiRenderer, label: &str, vec: &mut Box<dyn Any + Send>) -> bool;
+}
+
+pub struct IndexedCollectionVTableImpl<V: IndexedValue>
+{
+    phantom: PhantomData<V>,
+}
+
+impl<V: IndexedValue> IndexedCollectionVTableImpl<V>
+{
+    fn new() -> Self
+    {
+        IndexedCollectionVTableImpl { phantom: PhantomData }
+    }
+
+    fn downcast_ref<'a>(&self, vec: &'a Box<dyn Any + Send>) -> &'a IndexedVec<V>
+    {
+        &vec.downcast_ref::<IndexedVec<V>>().unwrap()
+    }
+
+    fn downcast_mut<'a>(&self, vec: &'a mut Box<dyn Any + Send>) -> &'a mut IndexedVec<V>
+    {
+        vec.downcast_mut::<IndexedVec<V>>().unwrap()
+    }
+}
+
+impl<V: IndexedValue> IndexedCollectionVTable for IndexedCollectionVTableImpl<V>
+{
+    fn clone_vtable(&self) -> Box<dyn IndexedCollectionVTable>
+    {
+        Box::new(IndexedCollectionVTableImpl::<V>::new())
+    }
+
+    fn clone_vec(&self, vec: &Box<dyn Any + Send>) -> Box<dyn Any + Send>
+    {
+        Box::new(self.downcast_ref(vec).clone())
+    }
+
+    fn ui_display(&self, ui: &UiRenderer, label: &str, vec: &Box<dyn Any + Send>)
+    {
+        self.downcast_ref(vec).ui_display(ui, label);
+    }
+
+    fn ui_edit(&self, ui: &UiRenderer, label: &str, vec: &mut Box<dyn Any + Send>) -> bool
+    {
+        self.downcast_mut(vec).ui_edit(ui, label)
+    }
+}
+
 pub struct IndexedCollectionEntry
 {
     name: String,
@@ -118,7 +173,7 @@ pub struct IndexedCollectionEntry
     key_index: TypeId,
     key_value: TypeId,
     vec: Box<dyn Any + Send>,
-    clone_vec: &'static dyn Fn(&Box<dyn Any + Send + 'static>) -> Box<dyn Any + Send + 'static>,
+    vtable: Box<dyn IndexedCollectionVTable>,
 }
 
 pub struct IndexedCollection
@@ -152,7 +207,7 @@ impl IndexedCollection
         assert!(!self.by_value.contains_key(&key_value));
 
         let vec = Box::new(IndexedVec::<I::Value>::new()) as Box<dyn Any + Send>;
-        let clone_vec = &|b: &Box<dyn Any + Send>| (Box::new(b.downcast_ref::<IndexedVec<I::Value>>().unwrap().clone()) as Box<dyn Any + Send>);
+        let vtable = Box::new(IndexedCollectionVTableImpl::<I::Value>::new());
 
         let entry = IndexedCollectionEntry
         {
@@ -161,7 +216,7 @@ impl IndexedCollection
             key_index,
             key_value,
             vec,
-            clone_vec,
+            vtable,
         };
         let rc = Rc::new(RefCell::new(entry));
 
@@ -209,8 +264,8 @@ impl Clone for IndexedCollection
                     index: e.index,
                     key_index: e.key_index,
                     key_value: e.key_value,
-                    vec: (e.clone_vec)(&e.vec),
-                    clone_vec: e.clone_vec,
+                    vec: e.vtable.clone_vec(&e.vec),
+                    vtable: e.vtable.clone_vtable(),
                 };
                 Rc::new(RefCell::new(entry))
             })
@@ -243,6 +298,9 @@ impl UiDisplay for IndexedCollection
                 if ui.imgui.collapsing_header(&i.name, TreeNodeFlags::empty())
                 {
                     ui.imgui.indent();
+
+                    i.vtable.ui_display(ui, &i.name, &i.vec);
+
                     ui.imgui.unindent();
                 }
             }
@@ -255,23 +313,28 @@ impl UiEdit for IndexedCollection
 {
     fn ui_edit(&mut self, ui: &UiRenderer, label: &str) -> bool
     {
+        let mut result = false;
+
         let _id = ui.imgui.push_id(label);
         if ui.imgui.collapsing_header(label, TreeNodeFlags::empty())
         {
             ui.imgui.indent();
             for i in self.in_order.iter()
             {
-                let i = i.borrow();
+                let i = &mut *i.borrow_mut();
                 let _i_id = ui.imgui.push_id_usize(i.index);
                 if ui.imgui.collapsing_header(&i.name, TreeNodeFlags::empty())
                 {
                     ui.imgui.indent();
+
+                    result |= i.vtable.ui_edit(ui, &i.name, &mut i.vec);
+
                     ui.imgui.unindent();
                 }
             }
             ui.imgui.unindent();
         }
-        false
+        result
     }
 }
 
