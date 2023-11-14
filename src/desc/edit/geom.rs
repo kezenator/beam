@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::geom::Surface;
-use crate::indexed::{IndexedValue, AnyIndex, GeomIndex};
+use crate::indexed::{IndexedValue, GeomIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::vec::{Dir3, Point3, Vec3};
 use crate::math::Scalar;

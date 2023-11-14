@@ -4,13 +4,14 @@ use std::convert::TryInto;
 use std::rc::Rc;
 
 use crate::color::SRGB;
+use crate::desc::edit::transform::TransformStage;
 use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object, Material, Texture};
 use crate::geom::Aabb;
 use crate::import;
 use crate::import::{FileSystemContext, ImportError};
 use crate::indexed::{MaterialIndex, TextureIndex};
 use crate::math::Scalar;
-use crate::vec::Point3;
+use crate::vec::{Point3, Mat4};
 
 pub fn import_gltf_file(path: &str, _destination: &Aabb, scene: &mut Scene) -> Result<(), ImportError>
 {
@@ -28,10 +29,11 @@ pub fn import_gltf_file(path: &str, _destination: &Aabb, scene: &mut Scene) -> R
         Some(gltf_scene) =>
         {
             let scene_state = file_state.sub_state("scene", gltf_scene.name(), gltf_scene.index());
+            let identity_matrix = Mat4::identity();
 
             for node in gltf_scene.nodes()
             {
-                import_node(&scene_state, &node)?;
+                import_node(&scene_state, &node, &identity_matrix)?;
             }
 
             Ok(())
@@ -39,7 +41,7 @@ pub fn import_gltf_file(path: &str, _destination: &Aabb, scene: &mut Scene) -> R
     }
 }
 
-fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), ImportError>
+fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_matrix: &Mat4) -> Result<(), ImportError>
 {
     let node_state = parent_state.sub_state("node", node.name(), node.index());
 
@@ -47,6 +49,9 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
     {
         let _camera_state = node_state.sub_state("camera", camera.name(), camera.index());
     }
+
+    let local_matrix = Mat4::from_row_arrays(node.transform().matrix().map(|r| r.map(|e| e as f64)));
+    let node_matrix = *parent_matrix * local_matrix;
 
     if let Some(mesh) = node.mesh()
     {
@@ -105,8 +110,14 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
 
                         let material = import_material(&primitive_state, primitive.material())?;
 
+                        let mut geom_transform = Transform::new();
+                        geom_transform.stages.push(TransformStage::Matrix(node_matrix.clone()));
+
+                        // TODO - different co-ordinate systems?
+                        geom_transform.stages.push(TransformStage::Matrix(Mat4::scaling_3d(Point3::new(1.0, 1.0, -1.0))));
+
                         let mut state = primitive_state.state.borrow_mut();
-                        let geom = state.scene.collection.push_named(Geom::Mesh{ triangles, transform: Transform::new() }, primitive_name.clone());
+                        let geom = state.scene.collection.push_named(Geom::Mesh{ triangles, transform: geom_transform }, primitive_name.clone());
                         let _obj = state.scene.collection.push_named(Object{ geom, material }, primitive_name);
                     }
                 },
@@ -120,7 +131,7 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
 
     for child in node.children()
     {
-        import_node(&node_state, &child)?;
+        import_node(&node_state, &child, &node_matrix)?;
     }
 
     Ok(())

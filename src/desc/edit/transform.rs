@@ -9,6 +9,7 @@ pub enum TransformStageTag
     Scale,
     Translate,
     ShiftAndScale,
+    Matrix,
 }
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,7 @@ pub enum TransformStage
     Scale(Scalar),
     Translate(Vec3),
     ShiftAndScale{from: Aabb, to: Aabb, maintain_aspect: bool},
+    Matrix(Mat4),
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +73,10 @@ impl Transform
                     result.scale_3d(scale);
                     result.translate_3d(to_min + (0.5 * to_dim));
                 }
+                TransformStage::Matrix(m) =>
+                {
+                    result = result * *m;
+                },
             }
         }
 
@@ -94,6 +100,7 @@ impl UiTaggedEnum for TransformStage
             TransformStageTag::Scale => "Scale",
             TransformStageTag::Translate => "Translate",
             TransformStageTag::ShiftAndScale => "Shift and Scale",
+            TransformStageTag::Matrix => "Matrix",
         }
     }
 
@@ -104,6 +111,7 @@ impl UiTaggedEnum for TransformStage
             TransformStageTag::Scale => TransformStage::Scale(1.0),
             TransformStageTag::Translate => TransformStage::Translate(Vec3::new(0.0, 0.0, 0.0)),
             TransformStageTag::ShiftAndScale => TransformStage::ShiftAndScale { from: Aabb::default(), to: Aabb::default(), maintain_aspect: true },
+            TransformStageTag::Matrix => TransformStage::Matrix(Mat4::identity()),
         }
     }
 
@@ -114,6 +122,7 @@ impl UiTaggedEnum for TransformStage
             TransformStage::Scale(_) => TransformStageTag::Scale,
             TransformStage::Translate(_) => TransformStageTag::Translate,
             TransformStage::ShiftAndScale{..} => TransformStageTag::ShiftAndScale,
+            TransformStage::Matrix(_) => TransformStageTag::Matrix,
         }
     }
 }
@@ -136,6 +145,14 @@ impl UiDisplay for TransformStage
 
                 let mut maintain_aspect = *maintain_aspect;
                 ui.imgui.checkbox("Maintain Aspect Ratio", &mut maintain_aspect);
+            },
+            TransformStage::Matrix(m) =>
+            {
+                let mut rows = m.into_row_arrays().map(|r| r.map(|c| c as f32));
+                ui.imgui.input_float4("R1", &mut rows[0]).build();
+                ui.imgui.input_float4("R2", &mut rows[1]).build();
+                ui.imgui.input_float4("R3", &mut rows[2]).build();
+                ui.imgui.input_float4("R4", &mut rows[3]).build();
             },
         }
     }
@@ -166,6 +183,19 @@ impl UiEdit for TransformStage
                 result |= ui.edit_vec3("Dest Aabb (max)", &mut to.max);
                 result |= ui.imgui.checkbox("Maintain Aspect Ratio", maintain_aspect);
             },
+            TransformStage::Matrix(m) =>
+            {
+                let mut rows = m.into_row_arrays().map(|r| r.map(|c| c as f32));
+                result |= ui.imgui.input_float4("R1", &mut rows[0]).build();
+                result |= ui.imgui.input_float4("R2", &mut rows[1]).build();
+                result |= ui.imgui.input_float4("R3", &mut rows[2]).build();
+                result |= ui.imgui.input_float4("R4", &mut rows[3]).build();
+                
+                if result
+                {
+                    *m = Mat4::from_row_arrays(rows.map(|r| r.map(|c| c as f64)));
+                }
+            }
         }
 
         result
