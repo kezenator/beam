@@ -52,9 +52,13 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
     {
         let mesh_state = node_state.sub_state("mesh", mesh.name(), mesh.index());
 
+        let single_primitive = mesh.primitives().len() == 1;
+
         for primitive in mesh.primitives()
         {
             let primitive_state = mesh_state.sub_state("primitive", None, primitive.index());
+
+            let primitive_name = if single_primitive { mesh_state.collection_name() } else { format!("{}-{}", mesh_state.collection_name(), primitive.index()) };
 
             let indexes = primitive_state.decode_accessor_required_vector_u32(primitive.indices())?;
 
@@ -102,8 +106,8 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node) -> Result<(), Impo
                         let material = import_material(&primitive_state, primitive.material())?;
 
                         let mut state = primitive_state.state.borrow_mut();
-                        let geom = state.scene.collection.push(Geom::Mesh{ triangles, transform: Transform::new() });
-                        let _obj = state.scene.collection.push(Object{ geom, material });
+                        let geom = state.scene.collection.push_named(Geom::Mesh{ triangles, transform: Transform::new() }, primitive_name.clone());
+                        let _obj = state.scene.collection.push_named(Object{ geom, material }, primitive_name);
                     }
                 },
                 _ =>
@@ -142,7 +146,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
                     None =>
                     {
                         let mut state = material_state.state.borrow_mut();
-                        Ok(state.scene.collection.push(Texture::Solid(diffuse.into())))
+                        Ok(state.scene.collection.push_named(Texture::Solid(diffuse.into()), material_state.collection_name()))
                     },
                     Some(image_info) =>
                     {
@@ -155,7 +159,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
                     },
                 }?;
                 let mut state = material_state.state.borrow_mut();
-                let added_index = state.scene.collection.push(Material::Diffuse{ texture });
+                let added_index = state.scene.collection.push_named(Material::Diffuse{ texture }, material_state.collection_name());
                 state.materials.insert(index, added_index.clone());
                 Ok(added_index)
             }
@@ -183,7 +187,7 @@ fn import_image(parent_state: &ScopedState, image: gltf::Image) -> Result<Textur
             let mut state = texture_state.state.borrow_mut();
             let image = import::image::import_image(uri, &mut state.fs_context)?;
 
-            Ok(state.scene.collection.push(Texture::Image(image)))
+            Ok(state.scene.collection.push_named(Texture::Image(image), texture_state.collection_name()))
         },
     }
 }
@@ -199,7 +203,8 @@ struct ImportState<'a>
 struct ScopedState<'a>
 {
     state: Rc<RefCell<ImportState<'a>>>,
-    path: String,    
+    path: String,
+    collection_name: String,
 }
 
 impl<'a> ScopedState<'a>
@@ -209,14 +214,20 @@ impl<'a> ScopedState<'a>
         let blobs = HashMap::new();
         let materials = HashMap::new();
         let state = Rc::new(RefCell::new(ImportState { scene, fs_context, blobs, materials }));
-        ScopedState { state, path: filename }
+        ScopedState { state, path: filename.clone(), collection_name: filename.clone() }
     }
 
     fn sub_state(&self, kind: &str, name: Option<&str>, index: usize) -> Self
     {
-        let sub_path = format!("{}/{}", self.path, name.map(|s| s.to_string()).unwrap_or_else(|| index.to_string()));
-        println!("Entering: {}: {}", kind, sub_path);
-        ScopedState { state: self.state.clone(), path: sub_path }
+        let path = format!("{}/{}", self.path, name.map(|s| s.to_string()).unwrap_or_else(|| index.to_string()));
+        let collection_name = name.map(|s| s.to_string()).unwrap_or_else(|| format!("{}-{}", kind, index));
+        println!("Entering: {}: {} ({})", kind, path, collection_name);
+        ScopedState { state: self.state.clone(), path, collection_name }
+    }
+
+    fn collection_name(&self) -> String
+    {
+        self.collection_name.clone()
     }
 
     fn error(&self, msg: &str) -> ImportError

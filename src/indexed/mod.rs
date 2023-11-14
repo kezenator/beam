@@ -232,6 +232,13 @@ impl IndexedCollection
         entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().push(value)
     }
 
+    pub fn push_named<V: IndexedValue>(&mut self, value: V, name: String) -> V::Index
+    {
+        let key_value = TypeId::of::<V>();
+        let entry = self.by_value.get_mut(&key_value).unwrap();
+        entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().push_named(value, name)
+    }
+
     pub fn map_item<I: Index, F, V>(&self, index: I, func: F) -> V
         where F: FnOnce(&I::Value, &IndexedCollection) -> V
     {
@@ -363,23 +370,34 @@ impl<V: IndexedValue> IndexedVec<V>
 
     pub fn push(&mut self, item: V) -> V::Index
     {
+        self.push_internal(item, None)
+    }
+
+    pub fn push_named(&mut self, item: V, name: String) -> V::Index
+    {
+        self.push_internal(item, Some(name))
+    }
+
+    pub fn push_default(&mut self) -> V::Index
+    {
+        self.push_internal(V::default(), None)
+    }
+
+    fn push_internal(&mut self, item: V, opt_name: Option<String>) -> V::Index
+    {
         if self.items.len() == 1
             && self.items[0].is_default
         {
             self.items[0].is_default = false;
+            self.items[0].name = opt_name;
             self.items[0].value.replace(item);
             V::Index::from_usize(0)
         }
         else
         {
-            self.items.push(IndexedVecEntry { value: RefCell::new(item), name: None, is_default: false });
+            self.items.push(IndexedVecEntry { value: RefCell::new(item), name: opt_name, is_default: false });
             V::Index::from_usize(self.items.len() - 1)
         }
-    }
-
-    pub fn push_default(&mut self) -> V::Index
-    {
-        self.push(V::default())
     }
 }
 
@@ -442,7 +460,9 @@ impl<V: IndexedValue> UiEdit for IndexedVec<V>
             {
                 let mut v = e.value.borrow_mut();
 
-                if let Some(_node) = ui.imgui.tree_node_config(format!("{} ({})###{}", i, v.summary(), i))
+                let display_summary = e.name.clone().unwrap_or_else(|| v.summary());
+
+                if let Some(_node) = ui.imgui.tree_node_config(format!("{} ({})###{}", i, display_summary, i))
                     .default_open(true)
                     .framed(true)
                     .frame_padding(true)

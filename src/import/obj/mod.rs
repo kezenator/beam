@@ -25,7 +25,9 @@ pub fn import_obj_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Res
 
     for obj in obj_file.objects.iter()
     {
-        for geom in obj.geometry.iter()
+        let single_geom = obj.geometry.len() == 1;
+
+        for (geom_index, geom) in obj.geometry.iter().enumerate()
         {
             let material = resources.load_material(&geom.material_name, scene)?;
 
@@ -33,9 +35,11 @@ pub fn import_obj_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Res
 
             push_geom_triangles(&obj_file, &geom, &mut triangles);
 
-            let geom = scene.collection.push(Geom::Mesh { triangles, transform: transform.clone() });
+            let name = if single_geom { obj.name.clone() } else { format!("{}.{}", obj.name, geom_index + 1) };
 
-            scene.collection.push(Object { geom, material });
+            let geom = scene.collection.push_named(Geom::Mesh { triangles, transform: transform.clone() }, name.clone());
+
+            scene.collection.push_named(Object { geom, material }, name);
         }
     }
 
@@ -181,7 +185,7 @@ impl ResourceLoader
                     if disolve < 1.0
                     {
                         // Use a dielectric
-                        let result = scene.collection.push(Material::Dielectric { ior });
+                        let result = scene.collection.push_named(Material::Dielectric { ior }, name.clone());
                         self.imported_materials.insert(Some(name.clone()), result);
                         return Ok(result);
                     }
@@ -192,15 +196,15 @@ impl ResourceLoader
                 let texture = if let Some(path) = mtl.diffuse_map
                 {
                     let image = self.load_image(&path)?;
-                    scene.collection.push(Texture::Image(image))
+                    scene.collection.push_named(Texture::Image(image), name.clone())
                 }
                 else
                 {
                     // Solid color
-                    scene.collection.push(Texture::Solid(mtl.diffuse.into()))
+                    scene.collection.push_named(Texture::Solid(mtl.diffuse.into()), name.clone())
                 };
 
-                let result = scene.collection.push(Material::Diffuse{ texture });
+                let result = scene.collection.push_named(Material::Diffuse{ texture }, name.clone());
                 self.imported_materials.insert(Some(name.clone()), result);
                 return Ok(result);
             }
