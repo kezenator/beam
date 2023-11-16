@@ -1,4 +1,4 @@
-use crate::indexed::{IndexedCollection, GeomIndex, ObjectIndex, TextureIndex, MaterialIndex};
+use crate::indexed::{IndexedCollection, GeomIndex, ObjectIndex, TextureIndex, MaterialIndex, TransformIndex};
 use crate::desc::edit::{Camera, Object};
 use crate::render::RenderOptions;
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
@@ -17,6 +17,7 @@ impl Scene
         let camera = Camera::default();
         let mut collection = IndexedCollection::new();
         collection.add_index::<TextureIndex>("Textures");
+        collection.add_index::<TransformIndex>("Transforms");
         collection.add_index::<MaterialIndex>("Materials");
         collection.add_index::<GeomIndex>("Geometry");
         collection.add_index::<ObjectIndex>("Objects");

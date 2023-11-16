@@ -2,12 +2,14 @@ use crate::indexed::{IndexedValue, TransformIndex, IndexedCollection};
 use crate::math::Scalar;
 use crate::desc::edit::geom::Aabb;
 use crate::ui::{UiDisplay, UiEdit, UiTaggedEnum};
-use crate::vec::{Vec3, Mat4, Point3};
+use crate::vec::{Vec3, Mat4, Point3, Quaternion};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TransformStageTag
 {
     Scale,
+    Scale3D,
+    Quaternion,
     Translate,
     ShiftAndScale,
     Matrix,
@@ -17,6 +19,8 @@ pub enum TransformStageTag
 pub enum TransformStage
 {
     Scale(Scalar),
+    Scale3D(Vec3),
+    Quaternion(Quaternion),
     Translate(Vec3),
     ShiftAndScale{from: Aabb, to: Aabb, maintain_aspect: bool},
     Matrix(Mat4),
@@ -75,6 +79,15 @@ impl Transform
                 {
                     result.scale_3d(Vec3::new(*scale, *scale, *scale));
                 },
+                TransformStage::Scale3D(scale) =>
+                {
+                    result.scale_3d(Vec3::new(scale.x, scale.y, scale.z));
+                },
+                TransformStage::Quaternion(quaternion) =>
+                {
+                    let (angle, axis) = quaternion.into_angle_axis();
+                    result.rotate_3d(angle, axis);
+                },
                 TransformStage::Translate(offset) =>
                 {
                     result.translate_3d(*offset);
@@ -127,6 +140,8 @@ impl UiTaggedEnum for TransformStage
         match tag
         {
             TransformStageTag::Scale => "Scale",
+            TransformStageTag::Scale3D => "Scale 3D",
+            TransformStageTag::Quaternion => "Quaternion",
             TransformStageTag::Translate => "Translate",
             TransformStageTag::ShiftAndScale => "Shift and Scale",
             TransformStageTag::Matrix => "Matrix",
@@ -138,6 +153,8 @@ impl UiTaggedEnum for TransformStage
         match tag
         {
             TransformStageTag::Scale => TransformStage::Scale(1.0),
+            TransformStageTag::Scale3D => TransformStage::Scale3D(Vec3::new(1.0, 1.0, 1.0)),
+            TransformStageTag::Quaternion => TransformStage::Quaternion(Quaternion::identity()),
             TransformStageTag::Translate => TransformStage::Translate(Vec3::new(0.0, 0.0, 0.0)),
             TransformStageTag::ShiftAndScale => TransformStage::ShiftAndScale { from: Aabb::default(), to: Aabb::default(), maintain_aspect: true },
             TransformStageTag::Matrix => TransformStage::Matrix(Mat4::identity()),
@@ -149,6 +166,8 @@ impl UiTaggedEnum for TransformStage
         match self
         {
             TransformStage::Scale(_) => TransformStageTag::Scale,
+            TransformStage::Scale3D(_) => TransformStageTag::Scale3D,
+            TransformStage::Quaternion(_) => TransformStageTag::Quaternion,
             TransformStage::Translate(_) => TransformStageTag::Translate,
             TransformStage::ShiftAndScale{..} => TransformStageTag::ShiftAndScale,
             TransformStage::Matrix(_) => TransformStageTag::Matrix,
@@ -165,6 +184,8 @@ impl UiDisplay for TransformStage
         match self
         {
             TransformStage::Scale(scale) => ui.display_float("Scale", scale),
+            TransformStage::Scale3D(scale) => ui.display_vec3("Scale", scale),
+            TransformStage::Quaternion(quaternion) => ui.display_quaternion("Scale", quaternion),
             TransformStage::Translate(offset) => ui.display_vec3("Translate", offset),
             TransformStage::ShiftAndScale{ from, to, maintain_aspect } =>
             {
@@ -200,6 +221,14 @@ impl UiEdit for TransformStage
             TransformStage::Scale(scale) =>
             {
                 result |= ui.edit_float("Scale", scale);
+            },
+            TransformStage::Scale3D(scale) =>
+            {
+                result |= ui.edit_vec3("Scale", scale);
+            },
+            TransformStage::Quaternion(quaternion) =>
+            {
+                result |= ui.edit_quaternion("Quaternion", quaternion);
             },
             TransformStage::Translate(offset) =>
             {

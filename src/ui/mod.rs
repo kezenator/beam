@@ -4,7 +4,7 @@ mod system;
 pub use system::System;
 pub use pixel::PixelDisplay;
 
-use crate::vec::Vec3;
+use crate::vec::{Vec3, Quaternion};
 
 pub trait UiApplication<T: 'static>
 {
@@ -56,6 +56,11 @@ impl<'a> UiRenderer<'a>
         self.imgui.label_text(label, format!("<{}, {}, {}>", val[0], val[1], val[2]));
     }
 
+    pub fn display_quaternion(&self, label: &str, val: &Quaternion)
+    {
+        self.imgui.label_text(label, format!("<{}, {}, {}, {}>", val.x, val.y, val.z, val.w));
+    }
+
     pub fn display_tag<T: UiTaggedEnum>(&self, label: &str, val: &T)
     {
         self.imgui.label_text(label, T::display_for_tag(val.get_tag()));
@@ -82,6 +87,19 @@ impl<'a> UiRenderer<'a>
         if result
         {
             *val = Vec3::new(as_f32[0] as f64, as_f32[1] as f64, as_f32[2] as f64);
+        }
+        
+        result
+    }
+
+    pub fn edit_quaternion(&self, label: &str, val: &mut Quaternion) -> bool
+    {
+        let mut as_f32 = [val.x as f32, val.y as f32, val.z as f32, val.w as f32];
+        let result = self.imgui.input_float4(label, &mut as_f32).build();
+
+        if result
+        {
+            *val = Quaternion{ x: as_f32[0] as f64, y: as_f32[1] as f64, z: as_f32[2] as f64, w: as_f32[3] as f64 };
         }
         
         result
