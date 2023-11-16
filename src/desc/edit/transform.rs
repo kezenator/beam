@@ -29,8 +29,9 @@ pub enum TransformStage
 #[derive(Debug, Clone)]
 pub struct Transform
 {
-    pub base: Option<TransformIndex>,
+    pub pre: Option<TransformIndex>,
     pub stages: Vec<TransformStage>,
+    pub post: Option<TransformIndex>,
 }
 
 impl Default for Transform
@@ -59,16 +60,16 @@ impl Transform
 {
     pub fn new() -> Self
     {
-        Transform { base: None, stages: Vec::new() }
+        Transform { pre: None, stages: Vec::new(), post: None }
     }
 
     pub fn build_matrix(&self, collection: &IndexedCollection) -> Mat4
     {
         let mut result = Mat4::identity();
 
-        if let Some(base_index) = self.base
+        if let Some(pre_index) = self.pre
         {
-            result = collection.map_item(base_index, |t, collection| t.build_matrix(collection)) * result;
+            result = collection.map_item(pre_index, |t, collection| t.build_matrix(collection));
         }
 
         for stage in self.stages.iter()
@@ -117,9 +118,15 @@ impl Transform
                 }
                 TransformStage::Matrix(m) =>
                 {
-                    result = result * *m;
+                    result = *m * result;
                 },
             }
+        }
+
+        if let Some(post_index) = self.post
+        {
+            let post_matrix = collection.map_item(post_index, |t, collection| t.build_matrix(collection));
+            result = post_matrix * result;
         }
 
         result
@@ -266,11 +273,12 @@ impl UiDisplay for Transform
     fn ui_display(&self, ui: &crate::ui::UiRenderer, label: &str)
     {
         let _label = ui.imgui.push_id(label);
-        self.base.ui_display(ui, "Base Transform");
+        self.pre.ui_display(ui, "Pre Transform");
         for (i, stage) in self.stages.iter().enumerate()
         {
             stage.ui_display(ui, &i.to_string());
         }
+        self.post.ui_display(ui, "Post Transform");
     }
 }
 
@@ -281,12 +289,14 @@ impl UiEdit for Transform
         let _label = ui.imgui.push_id(label);
         let mut result = false;
 
-        result |= self.base.ui_edit(ui, "Base Transform");
+        result |= self.pre.ui_edit(ui, "Pre Transform");
 
         for (i, stage) in self.stages.iter_mut().enumerate()
         {
             result |= stage.ui_edit(ui, &i.to_string());
         }
+
+        result |= self.post.ui_edit(ui, "Post Transform");
 
         result
     }

@@ -6,14 +6,14 @@ use std::rc::Rc;
 use crate::color::SRGB;
 use crate::desc::edit::transform::TransformStage;
 use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object, Material, Texture};
-use crate::geom::Aabb;
+use crate::geom::{Aabb, AabbBuilder};
 use crate::import;
 use crate::import::{FileSystemContext, ImportError};
 use crate::indexed::{MaterialIndex, TextureIndex, TransformIndex};
 use crate::math::Scalar;
 use crate::vec::{Point3, Mat4, Vec3, Quaternion};
 
-pub fn import_gltf_file(path: &str, _destination: &Aabb, scene: &mut Scene) -> Result<(), ImportError>
+pub fn import_gltf_file(path: &str, destination: &Aabb, scene: &mut Scene) -> Result<(), ImportError>
 {
     let context = FileSystemContext::new();
     let filename = context.path_to_filename(path);
@@ -30,20 +30,32 @@ pub fn import_gltf_file(path: &str, _destination: &Aabb, scene: &mut Scene) -> R
         {
             let scene_state = file_state.sub_state("scene", gltf_scene.name(), gltf_scene.index());
 
-            let base_transform = scene_state.state.borrow_mut().scene.collection.push_named(Transform::default(), scene_state.collection_name());
-            let base_matrix = Mat4::identity();
+            let mut scene_transform = Transform::default();
+            let scene_transform_index = scene_state.state.borrow_mut().scene.collection.push_named(scene_transform.clone(), scene_state.collection_name());
+
+            let mut aabb_builder = AabbBuilder::new();
 
             for node in gltf_scene.nodes()
             {
-                import_node(&scene_state, &node, base_transform, &base_matrix)?;
+                import_node(&scene_state, &node, scene_transform_index, &Mat4::identity(), &mut aabb_builder)?;
             }
+
+            let aabb = aabb_builder.build();
+
+            scene_transform.stages.push(TransformStage::ShiftAndScale
+                {
+                    from: crate::desc::edit::geom::Aabb{ min: aabb.min, max: aabb.max },
+                    to: crate::desc::edit::geom::Aabb{ min: destination.min, max: destination.max },
+                    maintain_aspect: true,
+                });
+            scene_state.state.borrow_mut().scene.collection.update_value(scene_transform_index, scene_transform);
 
             Ok(())
         },
     }
 }
 
-fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_index: TransformIndex, parent_transform_matrix: &Mat4) -> Result<(), ImportError>
+fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_index: TransformIndex, parent_transform_matrix: &Mat4, aabb_builder: &mut AabbBuilder) -> Result<(), ImportError>
 {
     let node_state = parent_state.sub_state("node", node.name(), node.index());
 
@@ -67,25 +79,23 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_i
 
 
             let mut local_transform = Transform::default();
-            local_transform.base = Some(parent_transform_index);
+            local_transform.post = Some(parent_transform_index);
 
-            // if scale[0] != 1.0 || scale[1] != 1.0 || scale[2] != 1.0
-            // {
-            //     local_transform.stages.push(TransformStage::Scale3D(Vec3::new(scale[0] as Scalar, scale[1] as Scalar, scale[2] as Scalar)));
-            // }
+            if scale[0] != 1.0 || scale[1] != 1.0 || scale[2] != 1.0
+            {
+                local_transform.stages.push(TransformStage::Scale3D(Vec3::new(scale[0] as Scalar, scale[1] as Scalar, scale[2] as Scalar)));
+            }
 
-            // if quot[0] != 0.0 || quot[1] != 0.0 || quot[2] != 0.0 || quot[3] != 1.0
-            // {
-            //     local_transform.stages.push(TransformStage::Quaternion(Quaternion{ x: quot[0] as Scalar, y: quot[1] as Scalar, z: quot[2] as Scalar, w: quot[3] as Scalar}));
-            // }
+            if quot[0] != 0.0 || quot[1] != 0.0 || quot[2] != 0.0 || quot[3] != 1.0
+            {
+                local_transform.stages.push(TransformStage::Quaternion(Quaternion{ x: quot[0] as Scalar, y: quot[1] as Scalar, z: quot[2] as Scalar, w: quot[3] as Scalar}));
+            }
 
-            // if trans[0] != 0.0 || trans[1] != 0.0 || trans[2] != 0.0
-            // {
-            //     local_transform.stages.push(TransformStage::Translate(Vec3::new(trans[0] as Scalar, trans[1] as Scalar, trans[2] as Scalar)));
-            // }
+            if trans[0] != 0.0 || trans[1] != 0.0 || trans[2] != 0.0
+            {
+                local_transform.stages.push(TransformStage::Translate(Vec3::new(trans[0] as Scalar, trans[1] as Scalar, trans[2] as Scalar)));
+            }
             
-            local_transform.stages.push(TransformStage::Matrix(local_matrix));
-
             state.scene.collection.push_named(local_transform, node_state.collection_name())
         }
     };
@@ -146,12 +156,18 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_i
                                 TriangleVertex{ location: y, texture_coords: v },
                                 TriangleVertex{ location: z, texture_coords: w },
                             ]});
+
+                            let x = node_matrix.mul_point(x);                            
+                            let y = node_matrix.mul_point(y);
+                            let z = node_matrix.mul_point(z);
+
+                            aabb_builder.add_triangle(x, y, z);
                         }
 
                         let material = import_material(&primitive_state, primitive.material())?;
 
                         let mut geom_transform = Transform::new();
-                        geom_transform.base = Some(local_transform_index);
+                        geom_transform.post = Some(local_transform_index);
 
                         let mut state = primitive_state.state.borrow_mut();
                         let geom = state.scene.collection.push_named(Geom::Mesh{ triangles, transform: geom_transform }, primitive_name.clone());
@@ -168,7 +184,7 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_i
 
     for child in node.children()
     {
-        import_node(&node_state, &child, local_transform_index, &node_matrix)?;
+        import_node(&node_state, &child, local_transform_index, &node_matrix, aabb_builder)?;
     }
 
     Ok(())

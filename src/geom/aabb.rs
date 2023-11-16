@@ -130,3 +130,31 @@ impl Volume for Aabb
             && self.min.z < point.z && point.z < self.max.z
     }
 }
+
+pub struct AabbBuilder(Option<Aabb>);
+
+impl AabbBuilder
+{
+    pub fn new() -> Self
+    {
+        AabbBuilder(None)
+    }
+
+    pub fn build(self) -> Aabb
+    {
+        self.0.unwrap_or_else(|| Aabb::new(Point3::zero(), Point3::zero()))
+    }
+
+    pub fn add_point(&mut self, p: Point3)
+    {
+        let cur = self.0.clone();
+        self.0 = Some(cur.map(|a| a.union(&Aabb::new(p, p))).unwrap_or_else(|| Aabb::new(p, p)));
+    }
+
+    pub fn add_triangle(&mut self, p1: Point3, p2: Point3, p3: Point3)
+    {
+        self.add_point(p1);
+        self.add_point(p2);
+        self.add_point(p3);
+    }
+}

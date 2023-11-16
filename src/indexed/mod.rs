@@ -258,6 +258,13 @@ impl IndexedCollection
         entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().push_named(value, name)
     }
 
+    pub fn update_value<V: IndexedValue>(&mut self, index: V::Index, value: V)
+    {
+        let key_value = TypeId::of::<V>();
+        let entry = self.by_value.get_mut(&key_value).unwrap();
+        entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().update(index, value);
+    }
+
     pub fn map_item<I: Index, F, V>(&self, index: I, func: F) -> V
         where F: FnOnce(&I::Value, &IndexedCollection) -> V
     {
@@ -400,6 +407,13 @@ impl<V: IndexedValue> IndexedVec<V>
     pub fn push_default(&mut self) -> V::Index
     {
         self.push_internal(V::default(), None)
+    }
+
+    pub fn update(&mut self, i: V::Index, v: V)
+    {
+        let entry = &mut self.items[i.to_usize()];
+        entry.is_default = false;
+        *entry.value.borrow_mut() = v;
     }
 
     fn push_internal(&mut self, item: V, opt_name: Option<String>) -> V::Index

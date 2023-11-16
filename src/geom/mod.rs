@@ -17,7 +17,7 @@ pub mod sdf;
 pub mod sphere;
 pub mod triangle;
 
-pub use aabb::Aabb;
+pub use aabb::{Aabb, AabbBuilder};
 pub use blob::{Blob, BlobPart};
 pub use bounds::BoundedSurface;
 pub use disc::Disc;
