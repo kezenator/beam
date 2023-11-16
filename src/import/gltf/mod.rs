@@ -50,7 +50,7 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_matrix: &Ma
         let _camera_state = node_state.sub_state("camera", camera.name(), camera.index());
     }
 
-    let local_matrix = Mat4::from_row_arrays(node.transform().matrix().map(|r| r.map(|e| e as f64)));
+    let local_matrix = Mat4::from_col_arrays(node.transform().matrix().map(|r| r.map(|e| e as f64)));
     let node_matrix = *parent_matrix * local_matrix;
 
     if let Some(mesh) = node.mesh()
@@ -79,6 +79,7 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_matrix: &Ma
 
                     if max_index > positions.len()
                     {
+                        println!("{:?}", indexes);
                         return Err(primitive_state.error(&format!("Primitive index {} is larger than provided position count {}", max_index, positions.len())));
                     }
                     else if (indexes.len() % 3) != 0
@@ -176,7 +177,47 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
             }
             else
             {
-                Err(material_state.error("Unsupported material"))
+                let mr = material.pbr_metallic_roughness();
+
+                let base_color_factor = mr.base_color_factor();
+                let base_color_factor = SRGB::new(base_color_factor[0] as Scalar, base_color_factor[1] as Scalar, base_color_factor[2] as Scalar, base_color_factor[3] as Scalar);
+
+                let texture = match mr.base_color_texture()
+                {
+                    None =>
+                    {
+                        let mut state = material_state.state.borrow_mut();
+                        Ok(state.scene.collection.push_named(Texture::Solid(base_color_factor.into()), material_state.collection_name()))
+                    },
+                    Some(image_info) =>
+                    {
+                        if image_info.texture_transform().is_some()
+                        {
+                            return Err(material_state.error("Texture transforms are not supported"));
+                        }
+
+                        import_image(&material_state, image_info.texture().source())
+                    },
+                }?;
+
+                let mut state = material_state.state.borrow_mut();
+
+                if mr.metallic_factor() == 0.0
+                {
+                    let added_index = state.scene.collection.push_named(Material::Diffuse{ texture }, material_state.collection_name());
+                    state.materials.insert(index, added_index.clone());
+                    Ok(added_index)
+                }
+                else if mr.metallic_factor() == 1.0
+                {
+                    let added_index = state.scene.collection.push_named(Material::Metal{ texture, fuzz: mr.roughness_factor().powf(2.0) as f64 }, material_state.collection_name());
+                    state.materials.insert(index, added_index.clone());
+                    Ok(added_index)
+                }
+                else
+                {
+                    Err(material_state.error("Unsupported material - PBR Metallic/Roughness metallic-factor only 0.0 or 1.0 supported"))
+                }
             }
         },
         Some(existing) =>
@@ -230,7 +271,7 @@ impl<'a> ScopedState<'a>
 
     fn sub_state(&self, kind: &str, name: Option<&str>, index: usize) -> Self
     {
-        let path = format!("{}/{}", self.path, name.map(|s| s.to_string()).unwrap_or_else(|| index.to_string()));
+        let path = format!("{}/{}-{}", self.path, kind, name.map(|s| s.to_string()).unwrap_or_else(|| index.to_string()));
         let collection_name = name.map(|s| s.to_string()).unwrap_or_else(|| format!("{}-{}", kind, index));
         println!("Entering: {}: {} ({})", kind, path, collection_name);
         ScopedState { state: self.state.clone(), path, collection_name }
@@ -246,8 +287,8 @@ impl<'a> ScopedState<'a>
         ImportError(format!("GLTF Error: {}: {}", self.path, msg))
     }
 
-    fn with_view_data<F>(&self, view: &gltf::buffer::View, func: F) -> Result<(), ImportError>
-        where F: FnOnce(&[u8]) -> Result<(), ImportError>
+    fn with_view_data<F>(&self, accessor: &gltf::Accessor, view: &gltf::buffer::View, accessor_len: usize, func: F) -> Result<(), ImportError>
+        where F: FnOnce(&[u8], Option<usize>) -> Result<(), ImportError>
     {
         let view_state = self.sub_state("view", view.name(), view.index());
 
@@ -256,7 +297,9 @@ impl<'a> ScopedState<'a>
 
         let mut state = self.state.borrow_mut();
 
-        let vector = match buffer.source()
+        // Load the buffer
+
+        let buffer_vector = match buffer.source()
         {
             gltf::buffer::Source::Bin =>
             {
@@ -282,30 +325,54 @@ impl<'a> ScopedState<'a>
             },
         }?;
 
-        let vec_len = vector.len();
+        let buffer_vec_len = buffer_vector.len();
         let buffer_len = buffer.length();
 
-        if vec_len != buffer_len
+        if buffer_vec_len > buffer_len
         {
-            return Err(buffer_state.error(&format!("Buffer expected to be {} bytes, but found/loaded {} bytes", buffer_len, vec_len)));
+            return Err(buffer_state.error(&format!("Buffer expected to be {} bytes, but found/loaded {} bytes", buffer_len, buffer_vec_len)));
         }
+
+        // Check the view is contained in the buffer
 
         let view_offset = view.offset();
         let view_len = view.length();
+        let view_stride = view.stride();
 
-        println!("Buffer: {:?} => vector len {} => try range offset={}, len={}", buffer.source(), vec_len, view_offset, view_len);
+        let accessor_offset = accessor.offset();
 
-        if (view_offset >= vec_len)
-            || (view_len > vec_len)
-            || ((view_offset + view_len) > vec_len)
+        println!("Buffer: {:?} => buffer len {} => try range accessor[offset={}] view[offset={}, len={}, stride={:?}]", buffer.source(), buffer_vec_len, accessor_offset, view_offset, view_len, view_stride);
+
+        let view_end = view_offset + view_len;
+
+        if (view_end < view_offset)
+            || (view_offset >= buffer_vec_len)
+            || (view_end > buffer_vec_len)
         {
             Err(buffer_state.error(&format!(
-                "View offset/len {}/{} not valid within buffer {:?} of length  {}",
-                view_offset, view_len, buffer.source(), vec_len)))
+                "View[index={}, offset={}, len={}] not valid within Buffer[index={}, source={:?}, len={}]",
+                view.index(), view_offset, view_len, buffer.index(), buffer.source(), buffer_vec_len)))
         }
         else
         {
-            func(&vector[view_offset..(view_offset+view_len)])
+            // Now check the accessor is contained within the view
+
+            let accessor_offset = view_offset + accessor_offset;
+            let accessor_end = accessor_offset + accessor_len;
+
+            if (accessor_end < accessor_offset)
+                || (accessor_offset < view_offset)
+                || (accessor_offset >= view_end)
+                || (accessor_end > view_end)
+            {
+                Err(buffer_state.error(&format!(
+                    "Accessor[index={}, offset={}, len={}], View[index={}, offset={}, len={}] not valid within Buffer[index={}, source={:?}, len={}]",
+                    accessor.index(), accessor_offset, accessor_len, view.index(), view_offset, view_len, buffer.index(), buffer.source(), buffer_vec_len)))
+            }
+            else
+            {
+                func(&buffer_vector[accessor_offset..accessor_end], view_stride)
+            }
         }
     }
 
@@ -376,15 +443,23 @@ impl<'a> ScopedState<'a>
                         None => Err(accessor_state.error("No view provided")),
                         Some(view) =>
                         {
+                            let expected = L * count;
+
                             accessor_state.with_view_data(
+                                &accessor,
                                 &view,
-                                |slice|
+                                expected,
+                                |slice, stride|
                                 {
-                                    let expected = L * count;
                                     if slice.len() < expected
                                     {
                                         Err(accessor_state.error(&format!("Expected {} bytes of data for {} x {:?} x {:?}, but got {} bytes",
                                             expected, count, dimensions, data_type, slice.len())))
+                                    }
+                                    else if stride.unwrap_or(L) != L
+                                    {
+                                        Err(accessor_state.error(&format!("Expected stride of {} for {} x {:?} x {:?}, but got {:?}",
+                                            L, count, dimensions, data_type, stride)))
                                     }
                                     else
                                     {
