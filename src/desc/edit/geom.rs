@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::geom::Surface;
-use crate::indexed::{IndexedValue, GeomIndex, AnyIndex};
+use crate::indexed::{IndexedValue, GeomIndex, AnyIndex, IndexedCollection};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::vec::{Dir3, Point3, Vec3};
 use crate::math::Scalar;
@@ -88,7 +88,7 @@ pub enum Geom
 
 impl Geom
 {
-    pub fn build_surface(&self) -> Box<dyn Surface>
+    pub fn build_surface(&self, collection: &IndexedCollection) -> Box<dyn Surface>
     {
         match self
         {
@@ -98,7 +98,7 @@ impl Geom
             Geom::Triangle{triangle} => Box::new(triangle.build()),
             Geom::Mesh{triangles, transform} =>
             {
-                let matrix = transform.build_matrix();
+                let matrix = transform.build_matrix(collection);
                 Box::new(crate::geom::Mesh::new(
                     triangles.iter()
                     .map(|t| t.build().transformed(&matrix)).collect()))

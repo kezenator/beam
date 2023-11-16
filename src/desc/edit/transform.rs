@@ -1,3 +1,4 @@
+use crate::indexed::{IndexedValue, TransformIndex, IndexedCollection};
 use crate::math::Scalar;
 use crate::desc::edit::geom::Aabb;
 use crate::ui::{UiDisplay, UiEdit, UiTaggedEnum};
@@ -24,19 +25,47 @@ pub enum TransformStage
 #[derive(Debug, Clone)]
 pub struct Transform
 {
-    pub stages: Vec<TransformStage>
+    pub base: Option<TransformIndex>,
+    pub stages: Vec<TransformStage>,
+}
+
+impl Default for Transform
+{
+    fn default() -> Self
+    {
+        Transform::new()
+    }
+}
+
+impl IndexedValue for Transform
+{
+    type Index = TransformIndex;
+
+    fn collect_indexes(&self, _indexes: &mut std::collections::HashSet<crate::indexed::AnyIndex>)
+    {
+    }
+
+    fn summary(&self) -> String
+    {
+        format!("{} stages", self.stages.len())
+    }
 }
 
 impl Transform
 {
     pub fn new() -> Self
     {
-        Transform { stages: Vec::new() }
+        Transform { base: None, stages: Vec::new() }
     }
 
-    pub fn build_matrix(&self) -> Mat4
+    pub fn build_matrix(&self, collection: &IndexedCollection) -> Mat4
     {
         let mut result = Mat4::identity();
+
+        if let Some(base_index) = self.base
+        {
+            result = collection.map_item(base_index, |t, collection| t.build_matrix(collection)) * result;
+        }
 
         for stage in self.stages.iter()
         {
@@ -132,6 +161,7 @@ impl UiDisplay for TransformStage
     fn ui_display(&self, ui: &crate::ui::UiRenderer, label: &str)
     {
         let _label = ui.imgui.push_id(label);
+        ui.display_tag("Stage", self);
         match self
         {
             TransformStage::Scale(scale) => ui.display_float("Scale", scale),
@@ -163,7 +193,7 @@ impl UiEdit for TransformStage
     fn ui_edit(&mut self, ui: &crate::ui::UiRenderer, label: &str) -> bool
     {
         let _label = ui.imgui.push_id(label);
-        let mut result = ui.edit_tag("Type", self);
+        let mut result = ui.edit_tag("Stage", self);
 
         match self
         {
@@ -207,6 +237,7 @@ impl UiDisplay for Transform
     fn ui_display(&self, ui: &crate::ui::UiRenderer, label: &str)
     {
         let _label = ui.imgui.push_id(label);
+        self.base.ui_display(ui, "Base Transform");
         for (i, stage) in self.stages.iter().enumerate()
         {
             stage.ui_display(ui, &i.to_string());
@@ -220,6 +251,8 @@ impl UiEdit for Transform
     {
         let _label = ui.imgui.push_id(label);
         let mut result = false;
+
+        result |= self.base.ui_edit(ui, "Base Transform");
 
         for (i, stage) in self.stages.iter_mut().enumerate()
         {

@@ -18,6 +18,9 @@ pub struct ImageIndex(usize);
 pub struct TextureIndex(usize);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TransformIndex(usize);
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MaterialIndex(usize);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,6 +34,7 @@ pub enum AnyIndex
 {
     Image(ImageIndex),
     Texture(TextureIndex),
+    Transform(TransformIndex),
     Material(MaterialIndex),
     Geom(GeomIndex),
     Object(ObjectIndex),
@@ -59,6 +63,21 @@ impl Index for TextureIndex
     fn from_usize(index: usize) -> Self
     {
         TextureIndex(index)
+    }
+
+    fn to_usize(&self) -> usize
+    {
+        self.0
+    }
+}
+
+impl Index for TransformIndex
+{
+    type Value = crate::desc::edit::Transform;
+
+    fn from_usize(index: usize) -> Self
+    {
+        TransformIndex(index)
     }
 
     fn to_usize(&self) -> usize
@@ -502,6 +521,31 @@ impl<T> UiEdit for T
         if ui.imgui.input_scalar(label, &mut as_usize).build()
         {
             *self = T::from_usize(as_usize);
+            return true;
+        }
+        false
+    }
+}
+
+impl<T> UiDisplay for Option<T>
+    where T: Index
+{
+    fn ui_display(&self, ui: &UiRenderer, label: &str)
+    {
+        ui.imgui.label_text(label, self.map(|s| s.to_usize().to_string()).unwrap_or_else(|| "<None>".to_string()))
+    }
+}
+
+impl<T> UiEdit for Option<T>
+    where T: Index
+{
+    fn ui_edit(&mut self, ui: &UiRenderer, label: &str) -> bool
+    {
+        let mut as_usize = self.map(|s| s.to_usize()).unwrap_or(usize::MAX);
+
+        if ui.imgui.input_scalar(label, &mut as_usize).build()
+        {
+            *self = Some(T::from_usize(as_usize));
             return true;
         }
         false

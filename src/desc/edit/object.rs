@@ -13,7 +13,7 @@ impl Object
     pub fn build(&self, collection: &IndexedCollection) -> crate::object::Object
     {
         crate::object::Object::new_boxed(
-            collection.map_item(self.geom, |geom, _| geom.build_surface()),
+            collection.map_item(self.geom, |geom, collection| geom.build_surface(collection)),
             collection.map_item(self.material, |material, collection| material.build(collection)))
     }
 }
