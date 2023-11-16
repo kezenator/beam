@@ -139,7 +139,14 @@ impl UiTaggedEnum for TransformStage
 
     fn all_tags() -> &'static [Self::TagEnum]
     {
-        &[TransformStageTag::Scale, TransformStageTag::Translate]
+        &[
+            TransformStageTag::Scale,
+            TransformStageTag::Scale3D,
+            TransformStageTag::Quaternion,
+            TransformStageTag::Translate,
+            TransformStageTag::ShiftAndScale,
+            TransformStageTag::Matrix,
+        ]
     }
 
     fn display_for_tag(tag: Self::TagEnum) -> &'static str

@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use crate::color::SRGB;
 use crate::desc::edit::transform::TransformStage;
-use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object, Material, Texture};
+use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object, Material, Texture, Color};
 use crate::geom::{Aabb, AabbBuilder};
 use crate::import;
 use crate::import::{FileSystemContext, ImportError};
@@ -219,7 +219,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
                             return Err(material_state.error("Texture transforms are not supported"));
                         }
 
-                        import_image(&material_state, image_info.texture().source())
+                        import_image(&material_state, diffuse.into(), image_info.texture().source())
                     },
                 }?;
                 let mut state = material_state.state.borrow_mut();
@@ -248,7 +248,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
                             return Err(material_state.error("Texture transforms are not supported"));
                         }
 
-                        import_image(&material_state, image_info.texture().source())
+                        import_image(&material_state, base_color_factor.into(), image_info.texture().source())
                     },
                 }?;
 
@@ -279,7 +279,7 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
     }        
 }
 
-fn import_image(parent_state: &ScopedState, image: gltf::Image) -> Result<TextureIndex, ImportError>
+fn import_image(parent_state: &ScopedState, base_color: Color, image: gltf::Image) -> Result<TextureIndex, ImportError>
 {
     let texture_state = parent_state.sub_state("image", image.name(), image.index());
 
@@ -288,10 +288,12 @@ fn import_image(parent_state: &ScopedState, image: gltf::Image) -> Result<Textur
         gltf::image::Source::View { .. } => Err(texture_state.error("Loading images from a view not supported")),
         gltf::image::Source::Uri { uri, .. } =>
         {
+            let name = image.name().map(|n| n.to_owned()).unwrap_or_else(|| uri.to_owned());
+
             let mut state = texture_state.state.borrow_mut();
             let image = import::image::import_image(uri, &mut state.fs_context)?;
 
-            Ok(state.scene.collection.push_named(Texture::Image(image), texture_state.collection_name()))
+            Ok(state.scene.collection.push_named(Texture::Image{ base_color, image }, name))
         },
     }
 }

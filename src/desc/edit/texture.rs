@@ -10,7 +10,7 @@ pub enum Texture
 {
     Solid(Color),
     Checkerboard(Color, Color),
-    Image(Image),
+    Image{ base_color: Color, image: Image},
 }
 
 impl Texture
@@ -21,7 +21,7 @@ impl Texture
         {
             Texture::Solid(color) => crate::texture::Texture::Solid(color.into_linear()),
             Texture::Checkerboard(a, b) => crate::texture::Texture::Checkerboard(a.into_linear(), b.into_linear()),
-            Texture::Image(image) => crate::texture::Texture::image(image.clone()),
+            Texture::Image{base_color, image} => crate::texture::Texture::image(base_color.into_linear(), image.clone()),
         }
     }
 
@@ -31,7 +31,7 @@ impl Texture
         {
             Texture::Solid(_) => "Solid",
             Texture::Checkerboard(_,_) => "Checkerboard",
-            Texture::Image(_) => "Image",
+            Texture::Image{..} => "Image",
         }
     }
 
@@ -44,7 +44,7 @@ impl Texture
             for entry in [
                 Texture::Solid(Color::default()),
                 Texture::Checkerboard(Color::default(), Color::default()),
-                Texture::Image(Image::new_empty(10, 10)) ]
+                Texture::Image{ base_color: Color::default(), image: Image::new_empty(10, 10)} ]
             {
                 let entry_tag = entry.ui_tag();
                 let selected = entry_tag == cur_tag;
@@ -105,10 +105,13 @@ impl UiDisplay for Texture
                 a.ui_display(ui, "A");
                 b.ui_display(ui, "B");
             },
-            Texture::Image(_image) =>
+            Texture::Image{base_color, image } =>
             {
-                ui.imgui.label_text(label, "Checkerboard");
-                ui.imgui.text("Image");
+                ui.imgui.label_text(label, "Image");
+                base_color.ui_display(ui, "Base Color");
+
+                let dimensions = image.dimensions();
+                ui.imgui.label_text("Image", format!("{} x {} pixels", dimensions.0, dimensions.1))
             },
         }
     }
@@ -132,9 +135,12 @@ impl UiEdit for Texture
                 result |= a.ui_edit(ui, "Color A");
                 result |= b.ui_edit(ui, "Color B");
             },
-            Texture::Image(_image) =>
+            Texture::Image{ base_color, image, } =>
             {
-                ui.imgui.text("Image");
+                result |= base_color.ui_edit(ui, "Base Color");
+                
+                let dimensions = image.dimensions();
+                ui.imgui.label_text("Image", format!("{} x {} pixels", dimensions.0, dimensions.1))
             }
         }
 

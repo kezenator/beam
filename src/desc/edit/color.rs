@@ -43,7 +43,7 @@ impl Default for Color
 {
     fn default() -> Self
     {
-        Self { linear: LinearRGB::new(0.0, 0.0, 0.0, 1.0), }
+        Self { linear: LinearRGB::new(1.0, 1.0, 1.0, 1.0), }
     }
 }
 

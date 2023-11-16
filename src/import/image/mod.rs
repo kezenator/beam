@@ -13,6 +13,12 @@ pub struct Image
 
 impl Image
 {
+    pub fn dimensions(&self) -> (u32, u32)
+    {
+        let image = self.data.read().unwrap();
+        image.dimensions()
+    }
+
     pub fn sample_at_uv(&self, u: Scalar, v: Scalar) -> SRGB
     {
         let image = self.data.read().unwrap();

@@ -8,7 +8,7 @@ pub enum Texture
 {
     Solid(LinearRGB),
     Checkerboard(LinearRGB, LinearRGB),
-    Image(Image),
+    Image{ base_color: LinearRGB, image: Image},
     Sdf(Sdf),
 }
 
@@ -24,9 +24,9 @@ impl Texture
         Texture::Checkerboard(c1.into(), c2.into())
     }
 
-    pub fn image(image: Image) -> Texture
+    pub fn image<C: Into<LinearRGB>>(base_color: C, image: Image) -> Texture
     {
-        Texture::Image(image)
+        Texture::Image{ base_color: base_color.into(), image }
     }
 
     pub fn sdf(sdf: Sdf) -> Texture
@@ -55,12 +55,12 @@ impl Texture
                     *c2
                 }
             }
-            Texture::Image(image) =>
+            Texture::Image{ base_color, image } =>
             {
                 let u = point[0].fract();
                 let v = point[1].fract();
 
-                image.sample_at_uv(u, v).into()
+                base_color.combined_with(&image.sample_at_uv(u, v).into())
             },
             Texture::Sdf(sdf) =>
             {
