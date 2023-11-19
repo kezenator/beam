@@ -1,3 +1,4 @@
+use crate::color::LinearRGB;
 use crate::math::Scalar;
 use crate::intersection::{Face, SurfaceIntersection};
 use crate::vec::{Dir3, Point3};
@@ -27,6 +28,7 @@ impl Ray
                 location: None,
                 normal: normal,
                 texture_coords: None,
+                opt_color: None,
             }
         }
         else
@@ -39,11 +41,12 @@ impl Ray
                 location: None,
                 normal: -normal,
                 texture_coords: None,
+                opt_color: None,
             }
         }
     }
 
-    pub fn new_intersection_with_texture_coords(&self, distance: Scalar, normal: Dir3, texture_coords: Point3) -> SurfaceIntersection<'_>
+    pub fn new_intersection_with_texture_coords(&self, distance: Scalar, normal: Dir3, texture_coords: Point3, opt_color: Option<LinearRGB>) -> SurfaceIntersection<'_>
     {
         if self.dir.dot(normal) <= 0.0
         {
@@ -55,6 +58,7 @@ impl Ray
                 location: None,
                 normal: normal,
                 texture_coords: Some(texture_coords),
+                opt_color,
             }
         }
         else
@@ -67,6 +71,7 @@ impl Ray
                 location: None,
                 normal: -normal,
                 texture_coords: Some(texture_coords),
+                opt_color,
             }
         }
     }
@@ -83,6 +88,7 @@ impl Ray
                 location: Some(location),
                 normal: normal,
                 texture_coords: None,
+                opt_color: None,
             }
         }
         else
@@ -95,6 +101,7 @@ impl Ray
                 location: Some(location),
                 normal: -normal,
                 texture_coords: None,
+                opt_color: None,
             }
         }
     }

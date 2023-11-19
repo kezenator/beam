@@ -54,16 +54,27 @@ impl Material
         {
             Material::Diffuse(texture) =>
             {
-                MaterialInteraction::Diffuse
+                let mut diffuse_color = texture.get_color_at(intersection.texture_coords);
+
+                if let Some(color_coords) = intersection.opt_color
                 {
-                    diffuse_color: texture.get_color_at(intersection.texture_coords),
+                    diffuse_color = diffuse_color.combined_with(&color_coords);
                 }
+
+                MaterialInteraction::Diffuse { diffuse_color }
             },
             Material::Metal(texture, fuzz) =>
             {
+                let mut attenuate_color = texture.get_color_at(intersection.texture_coords);
+
+                if let Some(color_coords) = intersection.opt_color
+                {
+                    attenuate_color = attenuate_color.combined_with(&color_coords);
+                }
+
                 MaterialInteraction::Reflection
                 {
-                    attenuate_color: texture.get_color_at(intersection.texture_coords),
+                    attenuate_color,
                     fuzz: *fuzz,
                 }
             },
@@ -76,25 +87,34 @@ impl Material
             },
             Material::Emit(texture) =>
             {
-                MaterialInteraction::Emit
+                let mut emitted_color = texture.get_color_at(intersection.texture_coords);
+
+                if let Some(color_coords) = intersection.opt_color
                 {
-                    emitted_color: texture.get_color_at(intersection.texture_coords),
+                    emitted_color = emitted_color.combined_with(&color_coords);
                 }
+
+                MaterialInteraction::Emit { emitted_color }
             },
             Material::EmitFrontFaceOnly(texture) =>
             {
                 match intersection.face
                 {
                     Face::Front =>
-                        MaterialInteraction::Emit
+                    {
+                        let mut emitted_color = texture.get_color_at(intersection.texture_coords);
+
+                        if let Some(color_coords) = intersection.opt_color
                         {
-                            emitted_color: texture.get_color_at(intersection.texture_coords),
-                        },
+                            emitted_color = emitted_color.combined_with(&color_coords);
+                        }
+                        MaterialInteraction::Emit { emitted_color }
+                    },
                     Face::Back =>
-                        MaterialInteraction::Diffuse
-                        {
-                            diffuse_color: LinearRGB::new(0.0, 0.0, 0.0, 1.0),
-                        },
+                    {
+                        let emitted_color = LinearRGB::black();
+                        MaterialInteraction::Emit { emitted_color }
+                    },
                 }
             },
         }

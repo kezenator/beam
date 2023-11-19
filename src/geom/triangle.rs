@@ -1,3 +1,4 @@
+use crate::color::LinearRGB;
 use crate::math::EPSILON;
 use crate::vec::{Point3, Mat4};
 use crate::geom::{Aabb, AabbBoundedSurface, Surface};
@@ -13,13 +14,14 @@ pub struct Triangle
     pub t0: Point3,
     pub t1: Point3,
     pub t2: Point3,
+    pub opt_colors: Option<[LinearRGB;3]>,
 }
 
 impl Triangle
 {
-    pub fn new(p0: Point3, p1: Point3, p2: Point3, t0: Point3, t1: Point3, t2: Point3) -> Self
+    pub fn new(p0: Point3, p1: Point3, p2: Point3, t0: Point3, t1: Point3, t2: Point3, opt_colors: Option<[LinearRGB;3]>) -> Self
     {
-        Triangle { p0, p1, p2, t0, t1, t2 }
+        Triangle { p0, p1, p2, t0, t1, t2, opt_colors }
     }
 
     pub fn transformed(&self, matrix: &Mat4) -> Self
@@ -32,6 +34,7 @@ impl Triangle
             t0: self.t0,
             t1: self.t1,
             t2: self.t2,
+            opt_colors: self.opt_colors,
         }
     }
 }
@@ -94,10 +97,18 @@ impl Surface for Triangle
                 + self.t1 * u
                 + self.t2 * v;
 
+            let opt_color = self.opt_colors.map(|vertex_colors|
+            {
+                vertex_colors[0].multiplied_by_scalar_inc_alpha(w)
+                    + vertex_colors[1].multiplied_by_scalar_inc_alpha(u)
+                    + vertex_colors[2].multiplied_by_scalar_inc_alpha(v)
+            });
+
             return Some(ray.new_intersection_with_texture_coords(
                 t,
                 edge1.cross(edge2).normalized(),
-                texture_coords
+                texture_coords,
+                opt_color
             ));
         }
 

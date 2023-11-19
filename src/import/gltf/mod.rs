@@ -123,6 +123,7 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_i
                     let positions = primitive_state.decode_accessor_required_vector_vec3_f32(primitive.get(&gltf::mesh::Semantic::Positions))?;
                     let texture_coords = primitive_state.decode_accessor_optional_vector_vec2_f32(primitive.get(&gltf::mesh::Semantic::TexCoords(0)))?
                         .unwrap_or_else(|| positions.clone());
+                    let color_coords = primitive_state.decode_accessor_optional_vector_color(primitive.get(&gltf::mesh::Semantic::Colors(0)))?;
 
                     let max_index = *indexes.iter().max().ok_or_else(|| primitive_state.error("Primitive must have at least one index"))?;
 
@@ -151,10 +152,21 @@ fn import_node(parent_state: &ScopedState, node: &gltf::Node, parent_transform_i
                             let v = texture_coords[indexes[3 * i + 1]];
                             let w = texture_coords[indexes[3 * i + 2]];
 
+                            let mut c = None;
+                            let mut d = None;
+                            let mut e = None;
+
+                            if let Some(color_coords) = &color_coords
+                            {
+                                c = Some(color_coords[indexes[3 * i + 0]]);
+                                d = Some(color_coords[indexes[3 * i + 1]]);
+                                e = Some(color_coords[indexes[3 * i + 2]]);
+                            }
+
                             triangles.push(Triangle { vertices: [
-                                TriangleVertex{ location: x, texture_coords: u },
-                                TriangleVertex{ location: y, texture_coords: v },
-                                TriangleVertex{ location: z, texture_coords: w },
+                                TriangleVertex{ location: x, texture_coords: u, opt_color: c, },
+                                TriangleVertex{ location: y, texture_coords: v, opt_color: d, },
+                                TriangleVertex{ location: z, texture_coords: w, opt_color: e, },
                             ]});
 
                             let x = node_matrix.mul_point(x);                            
@@ -456,6 +468,40 @@ impl<'a> ScopedState<'a>
                 let y = f32::from_ne_bytes([v[4], v[5], v[6], v[7]]);
                 Point3::new(x as Scalar, y as Scalar, 0.0)
             })
+    }
+
+    fn decode_accessor_optional_vector_color(&self, accessor: Option<gltf::Accessor>) -> Result<Option<Vec<Color>>, ImportError>
+    {
+        let mut result = None;
+
+        if let Some(dimensions) = accessor.as_ref().map(|a| a.dimensions())
+        {
+            if dimensions == gltf::accessor::Dimensions::Vec4
+            {
+                result = self.decode_accessor_optional_vector(accessor, gltf::accessor::Dimensions::Vec4, gltf::accessor::DataType::F32,
+                |v: [u8; 16]|
+                        {
+                            let r = f32::from_ne_bytes([v[0], v[1], v[2], v[3]]) as Scalar;
+                            let g = f32::from_ne_bytes([v[4], v[5], v[6], v[7]]) as Scalar;
+                            let b = f32::from_ne_bytes([v[8], v[9], v[10], v[11]]) as Scalar;
+                            let a = f32::from_ne_bytes([v[12], v[13], v[14], v[15]]) as Scalar;
+                            SRGB::new(r, g, b, a).into()
+                        })?;
+                }
+            else // assume RGB with no A
+            {
+                result = self.decode_accessor_optional_vector(accessor, gltf::accessor::Dimensions::Vec3, gltf::accessor::DataType::F32,
+            |v: [u8; 12]|
+                    {
+                        let r = f32::from_ne_bytes([v[0], v[1], v[2], v[3]]) as Scalar;
+                        let g = f32::from_ne_bytes([v[4], v[5], v[6], v[7]]) as Scalar;
+                        let b = f32::from_ne_bytes([v[8], v[9], v[10], v[11]]) as Scalar;
+                        SRGB::new(r, g, b, 1.0).into()
+                    })?;
+            }
+        }
+
+        Ok(result)
     }
 
     fn decode_accessor_optional_vector<const L: usize, T, F>(&self, accessor: Option<gltf::Accessor>, dimensions: gltf::accessor::Dimensions, data_type: gltf::accessor::DataType, convert: F) -> Result<Option<Vec<T>>, ImportError>

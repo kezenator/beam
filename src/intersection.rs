@@ -1,3 +1,4 @@
+use crate::color::LinearRGB;
 use crate::material::Material;
 use crate::math::Scalar;
 use crate::ray::Ray;
@@ -18,6 +19,7 @@ pub struct SurfaceIntersection<'r>
     pub face: Face,
     pub normal: Dir3,
     pub texture_coords: Option<Point3>,
+    pub opt_color: Option<LinearRGB>,
 }
 
 impl<'r> SurfaceIntersection<'r>
@@ -49,6 +51,7 @@ pub struct ShadingIntersection
     pub normal: Point3,
     pub incoming: Point3,
     pub texture_coords: Point3,
+    pub opt_color: Option<LinearRGB>,
     pub face: Face,
 }
 
@@ -62,6 +65,7 @@ impl<'r> From<SurfaceIntersection<'r>> for ShadingIntersection
             normal: val.normal,
             incoming: -val.ray.dir.normalized(),
             texture_coords: val.texture_coords(),
+            opt_color: val.opt_color,
             face: val.face,
         }
     }

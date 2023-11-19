@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::geom::Surface;
+use crate::desc::edit::Color;
 use crate::indexed::{IndexedValue, GeomIndex, AnyIndex, IndexedCollection};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 use crate::vec::{Dir3, Point3, Vec3};
@@ -12,6 +13,7 @@ pub struct TriangleVertex
 {
     pub location: Point3,
     pub texture_coords: Point3,
+    pub opt_color: Option<Color>,
 }
 
 #[derive(Clone, Debug)]
@@ -24,13 +26,21 @@ impl Triangle
 {
     fn build(&self) -> crate::geom::Triangle
     {
+        let mut opt_colors = None;
+
+        if let (Some(c1), Some(c2), Some(c3)) = (self.vertices[0].opt_color, self.vertices[1].opt_color, self.vertices[2].opt_color)
+        {
+            opt_colors = Some([c1.into_linear(), c2.into_linear(), c3.into_linear()]);
+        }
+
         crate::geom::Triangle::new(
             self.vertices[0].location,
             self.vertices[1].location,
             self.vertices[2].location,
             self.vertices[0].texture_coords,
             self.vertices[1].texture_coords,
-            self.vertices[2].texture_coords)
+            self.vertices[2].texture_coords,
+            opt_colors)
     }
 }
 
@@ -45,16 +55,19 @@ impl Default for Triangle
                 {
                     location: Point3::new(1.0, 0.0, 0.0),
                     texture_coords: Point3::new(1.0, 0.0, 0.0),
+                    opt_color: None,
                 },
                 TriangleVertex
                 {
                     location: Point3::new(0.0, 1.0, 0.0),
                     texture_coords: Point3::new(0.0, 1.0, 0.0),
+                    opt_color: None,
                 },
                 TriangleVertex
                 {
                     location: Point3::new(0.0, 0.0, 1.0),
                     texture_coords: Point3::new(0.0, 0.0, 0.0),
+                    opt_color: None,
                 },
             ]
         }

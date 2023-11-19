@@ -102,7 +102,7 @@ fn convert_vertex(file: &obj_file::ObjFile, triangle: &obj_file::Vertex) -> Tria
         }
     }
 
-    TriangleVertex { location, texture_coords }
+    TriangleVertex { location, texture_coords, opt_color: None }
 }
 
 fn calc_transform(vertices: &Vec<obj_file::Vector>, destination: &Aabb) -> Transform

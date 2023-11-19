@@ -47,6 +47,11 @@ impl LinearRGB
         LinearRGB::new(self.r * mul, self.g * mul, self.b * mul, self.a)
     }
 
+    pub fn multiplied_by_scalar_inc_alpha(&self, mul: Scalar) -> Self
+    {
+        LinearRGB::new(self.r * mul, self.g * mul, self.b * mul, self.a * mul)
+    }
+
     pub fn divided_by_scalar(&self, div: Scalar) -> Self
     {
         LinearRGB::new(self.r / div, self.g / div, self.b / div, self.a)
