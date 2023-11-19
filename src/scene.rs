@@ -23,7 +23,7 @@ pub enum ScatteringResult
 {
     Emit{ emitted_color: LinearRGB, probability: Scalar },
     Trace{ attenuation_color: LinearRGB, next_dir: Dir3, probability: Scalar },
-    Scatter{ attenuation_color: LinearRGB, bsdf: Box<dyn Bsdf> },
+    Scatter{ attenuation_color: LinearRGB, bsdf: Box<dyn Bsdf>, probability: Scalar },
 }
 
 impl ScatteringResult
@@ -38,9 +38,9 @@ impl ScatteringResult
         ScatteringResult::Trace{ attenuation_color, next_dir, probability }
     }
 
-    pub fn scatter(attenuation_color: LinearRGB, bsdf: Box<dyn Bsdf>) -> Self
+    pub fn scatter(attenuation_color: LinearRGB, bsdf: Box<dyn Bsdf>, probability: Scalar) -> Self
     {
-        ScatteringResult::Scatter{ attenuation_color, bsdf }
+        ScatteringResult::Scatter{ attenuation_color, bsdf, probability }
     }
 }
 
@@ -162,13 +162,13 @@ impl Scene
 
                     match S::scatter_ray(&self, &shading_intersection, material_interaction, sampler, stats)
                     {
-                        ScatteringResult::Scatter{ attenuation_color, bsdf } =>
+                        ScatteringResult::Scatter{ attenuation_color, bsdf, probability } =>
                         {
-                            let (scatter_dir, reflectance, probability) = self.scatter(&shading_intersection, bsdf, sampler);
+                            let (scatter_dir, reflectance, scatter_probability) = self.scatter(&shading_intersection, bsdf, sampler);
 
                             cur_ray = Ray::new(shading_intersection.location, scatter_dir);
                             cur_attenuation = cur_attenuation.combined_with(&attenuation_color.multiplied_by_scalar(reflectance));
-                            cur_probability *= probability;
+                            cur_probability *= probability * scatter_probability;
                         },
                         ScatteringResult::Trace{ attenuation_color, next_dir, probability } =>
                         {
@@ -383,15 +383,25 @@ impl ScatteringFunction for GlobalLighting
         {
             MaterialInteraction::Diffuse{ diffuse_color } =>
             {
-                ScatteringResult::scatter(
-                    diffuse_color,
-                    Box::new(Lambertian::new(intersection)))
+                let sample = sampler.uniform_scalar_unit();
+                if sample <= diffuse_color.a
+                {
+                    ScatteringResult::scatter(
+                        diffuse_color,
+                        Box::new(Lambertian::new(intersection)),
+                        diffuse_color.a)
+                }
+                else
+                {
+                    ScatteringResult::trace(LinearRGB::white(), -intersection.incoming, 1.0 - diffuse_color.a)
+                }
             },
             MaterialInteraction::Reflection{ attenuate_color, fuzz } =>
             {
                 ScatteringResult::scatter(
                     attenuate_color,
-                    Box::new(Phong::new(intersection, 0.2, 0.8, 5.0 / fuzz)))
+                    Box::new(Phong::new(intersection, 0.2, 0.8, 5.0 / fuzz)),
+                    1.0)
             },
             MaterialInteraction::Refraction{ ior } =>
             {
@@ -461,13 +471,30 @@ impl ScatteringFunction for LocalLighting
         {
             MaterialInteraction::Diffuse{ diffuse_color } =>
             {
-                // This is the main approximation to make "local lighting"
-                // muct raster to render.
-                // Instead of scattering from diffuse surfaces,
-                // we apply the local Phong model,
-                // and then Emit that light back towards the camera.
+                if diffuse_color.a >= 0.999999
+                {
+                    // This is the main approximation to make "local lighting"
+                    // muct raster to render.
+                    // Instead of scattering from diffuse surfaces,
+                    // we apply the local Phong model,
+                    // and then Emit that light back towards the camera.
 
-                ScatteringResult::emit(Phong::local_shading(scene, intersection, diffuse_color, 0.1, 0.6, diffuse_color, 0.3, 20.0, stats), 1.0)
+                    ScatteringResult::emit(Phong::local_shading(scene, intersection, diffuse_color, 0.1, 0.6, diffuse_color, 0.3, 20.0, stats), 1.0)
+                }
+                else if diffuse_color.a <= 0.000001
+                {
+                    // Fully transparent - just continue tracing
+
+                    ScatteringResult::trace(LinearRGB::white(), -intersection.incoming, 1.0)
+                }
+                else
+                {
+                    // Mix
+
+                    let local = Phong::local_shading(scene, intersection, diffuse_color, 0.1, 0.6, diffuse_color, 0.3, 20.0, stats);
+
+                    ScatteringResult::trace(local.multiplied_by_scalar(1.0 - diffuse_color.a), -intersection.incoming, 1.0)
+                }
             },
             MaterialInteraction::Reflection{ attenuate_color, .. } =>
             {

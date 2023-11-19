@@ -444,7 +444,22 @@ impl<'a> ScopedState<'a>
 
     fn decode_accessor_required_vector_u32(&self, accessor: Option<gltf::Accessor>) -> Result<Vec<usize>, ImportError>
     {
-        self.decode_accessor_required_vector(accessor, gltf::accessor::Dimensions::Scalar, gltf::accessor::DataType::U32, |v| u32::from_ne_bytes(v) as usize)
+        if let Some(true) = accessor.as_ref().map(|a| a.data_type() == gltf::accessor::DataType::U16)
+        {
+            self.decode_accessor_required_vector(
+                accessor,
+                gltf::accessor::Dimensions::Scalar,
+                gltf::accessor::DataType::U16,
+                |v| u16::from_ne_bytes(v) as usize)
+        }
+        else // assume u32
+        {
+            self.decode_accessor_required_vector(
+                accessor,
+                gltf::accessor::Dimensions::Scalar,
+                gltf::accessor::DataType::U32,
+                |v| u32::from_ne_bytes(v) as usize)
+        }
     }
 
     fn decode_accessor_required_vector_vec3_f32(&self, accessor: Option<gltf::Accessor>) -> Result<Vec<Point3>, ImportError>
@@ -527,7 +542,7 @@ impl<'a> ScopedState<'a>
                 if (accessor.dimensions() != dimensions)
                     || (accessor.data_type() != data_type)
                 {
-                    Err(accessor_state.error(&format!("Expected Vec3/F32 but got {:?}/{:?}", accessor.dimensions(), accessor.data_type())))
+                    Err(accessor_state.error(&format!("Expected {:?}/{:?} but got {:?}/{:?}", dimensions, data_type, accessor.dimensions(), accessor.data_type())))
                 }
                 else
                 {
