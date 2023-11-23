@@ -232,3 +232,121 @@ impl Value
         ExecError::new(self.source, format!("Expected {}", expected))
     }
 }
+
+pub trait FromValue
+    where Self: Sized
+{
+    const IS_OPTIONAL: bool;
+    fn from_value(value: Value, context: &mut Context) -> ExecResult<Self>;
+}
+
+impl FromValue for Value
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<Value>
+    {
+        Ok(value)
+    }
+}
+
+impl<T> FromValue for Option<T>
+    where T: FromValue
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, context: &mut Context) -> ExecResult<Option<T>>
+    {
+        Ok(Some(T::from_value(value, context)?))
+    }
+}
+
+impl FromValue for bool
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<bool>
+    {
+        value.into_bool()
+    }
+}
+
+impl FromValue for Scalar
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<Scalar>
+    {
+        value.into_scalar()
+    }
+}
+
+impl FromValue for Vec3
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<Vec3>
+    {
+        value.into_vec3()
+    }
+}
+
+impl FromValue for Color
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<Color>
+    {
+        value.into_color()
+    }
+}
+
+impl FromValue for Aabb
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<Aabb>
+    {
+        value.into_aabb()
+    }
+}
+
+impl FromValue for Sdf
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<Sdf>
+    {
+        value.into_sdf()
+    }
+}
+
+impl FromValue for TextureIndex
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, context: &mut Context) -> ExecResult<TextureIndex>
+    {
+        value.into_texture(context)
+    }
+}
+
+impl FromValue for MaterialIndex
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<MaterialIndex>
+    {
+        value.into_material()
+    }
+}
+
+impl FromValue for GeomIndex
+{
+    const IS_OPTIONAL: bool = false;
+
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<GeomIndex>
+    {
+        value.into_geom()
+    }
+}

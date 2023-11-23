@@ -1,302 +1,204 @@
 use crate::color::SRGB;
 use crate::desc::edit::{Camera, Geom, Material, Object, Scene, Texture, Triangle, TriangleVertex};
-use crate::exec::{Context, Function, Value};
+use crate::exec::{Context, Value};
+use crate::math::Scalar;
 use crate::import;
 use crate::geom::{Sdf, Aabb};
-use crate::vec::Point3;
+use crate::vec::{Dir3, Point3};
 
-use super::ExecError;
+use super::{ExecError, NativeFunctionBuilder};
 
 pub fn add_inbuilt_functions(root_context: &mut Context)
 {
-    let mut funcs = Vec::new();
+    let mut builder = NativeFunctionBuilder::new(root_context);
 
-    for name in ["==", "eq"].iter()
-    {
-        funcs.push(Function::new_inbuilt(
-            name.to_string(),
-            vec!["lhs".to_owned(), "rhs".to_owned()],
-            root_context,
-            |context: &mut Context|
-            {
-                let lhs = context.get_param_positional(0)?.into_scalar()?;
-                let rhs = context.get_param_positional(1)?.into_scalar()?;
-
-                Ok(Value::new_bool(context.get_call_site(), lhs == rhs))
-            }
-        ));
-    }
-
-    for name in ["!=", "neq"].iter()
-    {
-        funcs.push(Function::new_inbuilt(
-            name.to_string(),
-            vec!["lhs".to_owned(), "rhs".to_owned()],
-            root_context,
-            |context: &mut Context|
-            {
-                let lhs = context.get_param_positional(0)?.into_scalar()?;
-                let rhs = context.get_param_positional(1)?.into_scalar()?;
-
-                Ok(Value::new_bool(context.get_call_site(), lhs != rhs))
-            }
-        ));
-    }
-
-    funcs.push(Function::new_inbuilt(
-        "neg".to_string(),
-        vec!["val".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        ["==", "eq"],
+        ["lhs", "rhs"],
+        |context, lhs: Scalar, rhs: Scalar|
         {
-            let val = context.get_param_positional(0)?.into_scalar()?;
+            Ok(Value::new_bool(context.get_call_site(), lhs == rhs))
+        }
+    );
 
+    builder.add_2(
+        ["!=", "ne"],
+        ["lhs", "rhs"],
+        |context, lhs: Scalar, rhs: Scalar|
+        {
+            Ok(Value::new_bool(context.get_call_site(), lhs != rhs))
+        }
+    );
+
+    builder.add_1(
+        "neg",
+        ["val"],
+        |context, val: Scalar|
+        {
             Ok(Value::new_scalar(context.get_call_site(), -val))
         }
-    ));
+    );
 
-    for name in ["+", "add"].iter()
-    {
-        funcs.push(Function::new_inbuilt(
-            name.to_string(),
-            vec!["lhs".to_owned(), "rhs".to_owned()],
-            root_context,
-            |context: &mut Context|
-            {
-                let lhs = context.get_param_positional(0)?.into_scalar()?;
-                let rhs = context.get_param_positional(1)?.into_scalar()?;
-
-                Ok(Value::new_scalar(context.get_call_site(), lhs + rhs))
-            }
-        ));
-    }
-
-    for name in ["-", "sub"].iter()
-    {
-        funcs.push(Function::new_inbuilt(
-            name.to_string(),
-            vec!["lhs".to_owned(), "rhs".to_owned()],
-            root_context,
-            |context: &mut Context|
-            {
-                let lhs = context.get_param_positional(0)?.into_scalar()?;
-                let rhs = context.get_param_positional(1)?.into_scalar()?;
-
-                Ok(Value::new_scalar(context.get_call_site(), lhs - rhs))
-            }
-        ));
-    }
-
-    for name in ["*", "mul"].iter()
-    {
-        funcs.push(Function::new_inbuilt(
-            name.to_string(),
-            vec!["lhs".to_owned(), "rhs".to_owned()],
-            root_context,
-            |context: &mut Context|
-            {
-                let lhs = context.get_param_positional(0)?.into_scalar()?;
-                let rhs = context.get_param_positional(1)?.into_scalar()?;
-
-                Ok(Value::new_scalar(context.get_call_site(), lhs * rhs))
-            }
-        ));
-    }
-
-    for name in ["/", "div"].iter()
-    {
-        funcs.push(Function::new_inbuilt(
-            name.to_string(),
-            vec!["lhs".to_owned(), "rhs".to_owned()],
-            root_context,
-            |context: &mut Context|
-            {
-                let lhs = context.get_param_positional(0)?.into_scalar()?;
-                let rhs = context.get_param_positional(1)?.into_scalar()?;
-
-                Ok(Value::new_scalar(context.get_call_site(), lhs / rhs))
-            }
-        ));
-    }
-
-    funcs.push(Function::new_inbuilt(
-        "rgb".to_owned(),
-        vec!["r".to_owned(), "g".to_owned(), "b".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        ["+", "add"],
+        ["lhs", "rhs"],
+        |context, lhs: Scalar, rhs: Scalar|
         {
-            let r = context.get_param_named("r")?.into_scalar()?;
-            let g = context.get_param_named("g")?.into_scalar()?;
-            let b = context.get_param_named("b")?.into_scalar()?;
+            Ok(Value::new_scalar(context.get_call_site(), lhs + rhs))
+        }
+    );
 
+    builder.add_2(
+        ["-", "sub"],
+        ["lhs", "rhs"],
+        |context, lhs: Scalar, rhs: Scalar|
+        {
+            Ok(Value::new_scalar(context.get_call_site(), lhs - rhs))
+        }
+    );
+
+    builder.add_2(
+        ["*", "mul"],
+        ["lhs", "rhs"],
+        |context, lhs: Scalar, rhs: Scalar|
+        {
+            Ok(Value::new_scalar(context.get_call_site(), lhs * rhs))
+        }
+    );
+
+    builder.add_2(
+        ["/", "div"],
+        ["lhs", "rhs"],
+        |context, lhs: Scalar, rhs: Scalar|
+        {
+            Ok(Value::new_scalar(context.get_call_site(), lhs / rhs))
+        }
+    );
+
+    builder.add_3(
+        "rgb",
+        ["r", "g", "b"],
+        |context, r: Scalar, g: Scalar, b: Scalar|
+        {
             Ok(Value::new_color(context.get_call_site(), SRGB::new(r, g, b, 1.0).into()))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "rgba".to_owned(),
-        vec!["r".to_owned(), "g".to_owned(), "b".to_owned(), "a".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_4(
+        "rgba",
+        ["r", "g", "b", "a"],
+        |context, r: Scalar, g: Scalar, b: Scalar, a: Scalar|
         {
-            let r = context.get_param_named("r")?.into_scalar()?;
-            let g = context.get_param_named("g")?.into_scalar()?;
-            let b = context.get_param_named("b")?.into_scalar()?;
-            let a = context.get_param_named("a")?.into_scalar()?;
-
             Ok(Value::new_color(context.get_call_site(), SRGB::new(r, g, b, a).into()))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "camera".to_owned(),
-        vec!["location".to_owned(), "look_at".to_owned(), "up".to_owned(), "fov".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_4(
+        "camera",
+        ["location", "look_at", "up", "fov"],
+        |context, location: Point3, look_at: Point3, up: Dir3, fov: Scalar|
         {
-            let location = context.get_param_named("location")?.into_vec3()?;
-            let look_at = context.get_param_named("look_at")?.into_vec3()?;
-            let up = context.get_param_named("up")?.into_vec3()?;
-            let fov = context.get_param_named("fov")?.into_scalar()?;
-
             let camera = Camera { location, look_at, up, fov };
 
             context.with_app_state::<Scene, _, _>(|scene| { scene.camera = camera.clone(); Ok(()) })?;
 
             Ok(Value::new_camera(context.get_call_site(), camera))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "aabb".to_owned(),
-        vec!["min".to_owned(), "max".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "aabb",
+        ["min", "max"],
+        |context, min: Point3, max: Point3|
         {
-            let min = context.get_param_named("min")?.into_vec3()?;
-            let max = context.get_param_named("max")?.into_vec3()?;
-
             let aabb = Aabb::new(min, max);
 
             Ok(Value::new_aabb(context.get_call_site(), aabb))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "sphere".to_owned(),
-        vec!["center".to_owned(), "radius".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "sphere",
+        ["center", "radius"],
+        |context, center: Point3, radius: Scalar|
         {
-            let center = context.get_param_named("center")?.into_vec3()?;
-            let radius = context.get_param_named("radius")?.into_scalar()?;
-
             let geom = Geom::Sphere{ center, radius };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "sdf_sphere".to_owned(),
-        vec!["center".to_owned(), "radius".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "sdf_sphere",
+        ["center", "radius"],
+        |context, center: Point3, radius: Scalar|
         {
-            let center = context.get_param_named("center")?.into_vec3()?;
-            let radius = context.get_param_named("radius")?.into_scalar()?;
-
             Ok(Value::new_sdf(context.get_call_site(), Sdf::Sphere{ center, radius }))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "sdf_capsule".to_owned(),
-        vec!["a".to_owned(), "b".to_owned(), "radius".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_3(
+        "sdf_capsule",
+        ["a", "b", "radius"],
+        |context, a: Point3, b: Point3, radius: Scalar|
         {
-            let a = context.get_param_named("a")?.into_vec3()?;
-            let b = context.get_param_named("b")?.into_vec3()?;
-            let radius = context.get_param_named("radius")?.into_scalar()?;
-
             Ok(Value::new_sdf(context.get_call_site(), Sdf::Capsule{ a, b, radius }))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "sdf_union".to_owned(),
-        vec![],
-        root_context,
-        |context: &mut Context|
+    builder.add_vec(
+        "sdf_union",
+        "items",
+        |context, members|
         {
-            let members = context.get_param_all_positional();
-
-            let members = members
-                .into_iter()
-                .map(|i| i.into_sdf())
-                .collect::<Result<Vec<_>, _>>()?;
-
-            Ok(Value::new_sdf(context.get_call_site(), Sdf::Union{ members }))
+            Ok(Value::new_sdf(context.get_call_site(), Sdf::Union { members }))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "sdf_annular".to_owned(),
-        vec!["sdf".to_owned(), "radius".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "sdf_annular",
+        ["sdf", "radius"],
+        |context, sdf: Sdf, radius: Scalar|
         {
-            let sdf = context.get_param_named("sdf")?.into_sdf()?;
-            let radius = context.get_param_named("radius")?.into_scalar()?;
-
             Ok(Value::new_sdf(context.get_call_site(), Sdf::Annular{ sdf: Box::new(sdf), radius }))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "plane".to_owned(),
-        vec!["point".to_owned(), "normal".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "plane",
+        ["point", "normal"],
+        |context, point, normal|
         {
-            let point = context.get_param_named("point")?.into_vec3()?;
-            let normal = context.get_param_named("normal")?.into_vec3()?;
             let geom = Geom::Plane{ point, normal };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "triangle".to_owned(),
-        vec!["v1".to_owned(), "v2".to_owned(), "v3".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_3(
+        "triangle",
+        ["v1", "v2", "v3"],
+        |context, v1, v2, v3|
         {
-            let v1 = TriangleVertex{ location: context.get_param_named("v1")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), opt_color: None, };
-            let v2 = TriangleVertex{ location: context.get_param_named("v2")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), opt_color: None, };
-            let v3 = TriangleVertex{ location: context.get_param_named("v3")?.into_vec3()?, texture_coords: Point3::new(0.0, 0.0, 0.0), opt_color: None, };
+            let v1 = TriangleVertex{ location: v1, texture_coords: Point3::new(0.0, 0.0, 0.0), opt_color: None, };
+            let v2 = TriangleVertex{ location: v2, texture_coords: Point3::new(0.0, 0.0, 0.0), opt_color: None, };
+            let v3 = TriangleVertex{ location: v3, texture_coords: Point3::new(0.0, 0.0, 0.0), opt_color: None, };
             let geom = Geom::Triangle{triangle: Triangle { vertices: [v1, v2, v3]}};
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "load_obj".to_owned(),
-        vec!["path".to_owned(), "destination".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "load_obj",
+        ["path", "destination"],
+        |context, path: Value, destination|
         {
-            let path = context.get_param_named("path")?;
             let source_location = path.source_location();
             let path = path.into_string()?;
-
-            let destination = context.get_param_named("destination")?.into_aabb()?;
 
             context.with_app_state::<Scene, _, _>(|scene|
                 {
@@ -308,15 +210,13 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
 
             Ok(Value::new_void())
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "load_obj_as_mesh".to_owned(),
-        vec!["path".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_1(
+        "load_obj_as_mesh",
+        ["path"],
+        |context, path: Value|
         {
-            let path = context.get_param_named("path")?;
             let source_location = path.source_location();
             let path = path.into_string()?;
 
@@ -325,19 +225,15 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "load_gltf".to_owned(),
-        vec!["path".to_owned(), "destination".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "load_gltf",
+        ["path", "destination"],
+        |context, path: Value, destination|
         {
-            let path = context.get_param_named("path")?;
             let source_location = path.source_location();
             let path = path.into_string()?;
-
-            let destination = context.get_param_named("destination")?.into_aabb()?;
 
             context.with_app_state::<Scene, _, _>(|scene|
                 {
@@ -349,109 +245,81 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
 
             Ok(Value::new_void())
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "texture_checkerboard".to_owned(),
-        vec!["a".to_owned(), "b".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "texture_checkerboard",
+        ["a", "b"],
+        |context, a, b|
         {
-            let a = context.get_param_named("a")?.into_color()?;
-            let b = context.get_param_named("b")?.into_color()?;
-
             let texture = Texture::Checkerboard(a, b);
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(texture)))?;
 
             Ok(Value::new_texture(context.get_call_site(), index))
         }
-    ));
+    );
 
-    // funcs.push(Function::new_inbuilt(
-    //     "texture_sdf".to_owned(),
-    //     vec!["sdf".to_owned()],
-    //     root_context,
-    //     |context: &mut Context|
-    //     {
-    //         let sdf = context.get_param_named("sdf")?.into_sdf()?;
-
-    //         Ok(Value::new_texture(context.get_call_site(), Texture::sdf(sdf)))
-    //     }
-    // ));
-
-    funcs.push(Function::new_inbuilt(
-        "dielectric".to_owned(),
-        vec!["ior".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_1(
+        "dielectric",
+        ["ior"],
+        |context, ior|
         {
-            let ior = context.get_param_named("ior")?.into_scalar()?;
             let material = Material::Dielectric{ ior };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "diffuse".to_owned(),
-        vec!["texture".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_1(
+        "diffuse",
+        ["texture"],
+        |context, texture|
         {
-            let texture = context.get_param_named("texture")?.into_texture(context)?;
             let material = Material::Diffuse{ texture };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "emit".to_owned(),
-        vec!["texture".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_1(
+        "emit",
+        ["texture"],
+        |context, texture|
         {
-            let texture = context.get_param_named("texture")?.into_texture(context)?;
             let material = Material::Emit{ texture };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "metal".to_owned(),
-        vec!["texture".to_owned(), "fuzz".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "metal",
+        ["texture", "fuzz"],
+        |context, texture, fuzz|
         {
-            let texture = context.get_param_named("texture")?.into_texture(context)?;
-            let fuzz = context.get_param_named("fuzz")?.into_scalar()?;
             let material = Material::Metal{ texture, fuzz };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(material)))?;
 
             Ok(Value::new_material(context.get_call_site(), index))
         }
-    ));
+    );
 
-    funcs.push(Function::new_inbuilt(
-        "object".to_owned(),
-        vec!["geometry".to_owned(), "material".to_owned()],
-        root_context,
-        |context: &mut Context|
+    builder.add_2(
+        "object",
+        ["geometry", "material"],
+        |context, geom, material|
         {
-            let geom = context.get_param_named("geometry")?.into_geom()?;
-            let material = context.get_param_named("material")?.into_material()?;
             let object = Object{ geom, material };
             let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(object)))?;
 
             Ok(Value::new_object(context.get_call_site(), index))
         }
-    ));
+    );
 
-    for func in funcs
+    for func in builder.build()
     {
         let name = func.get_name().to_owned();
         root_context.set_var_named(&name, Value::new_function(func));
