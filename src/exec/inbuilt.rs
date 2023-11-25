@@ -117,13 +117,13 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
         }
     );
 
-    builder.add_2(
+    builder.add_3(
         "sphere",
-        ["center", "radius"],
-        |context, center: Point3, radius: Scalar|
+        ["center", "radius", "name"],
+        |context, center: Point3, radius: Scalar, name: Option<String>|
         {
             let geom = Geom::Sphere{ center, radius };
-            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push(geom)))?;
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push_opt_name(geom, name)))?;
 
             Ok(Value::new_geom(context.get_call_site(), index))
         }

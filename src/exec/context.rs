@@ -57,22 +57,18 @@ impl Context
         self.frame.borrow_mut().set_var_named(name, value);
     }
 
-    pub fn get_param_named(&mut self, name: &str) -> ExecResult<Value>
+    pub fn get_param(&mut self, position: usize, name: &str) -> ExecResult<Value>
     {
-        match self.frame.borrow().get_param_named(name)
+        match self.frame.borrow().get_opt_param(position, name)
         {
             Some(val) => Ok(val),
-            None => Err(ExecError::new(self.frame.borrow().call_site, format!("No named parameter \"{}\"", name))),
+            None => Err(ExecError::new(self.frame.borrow().call_site, format!("Missing required parameter #{}/{}", position, name))),
         }
     }
 
-    pub fn get_param_positional(&mut self, index: usize) -> ExecResult<Value>
+    pub fn get_opt_param(&mut self, position: usize, name: &str) -> Option<Value>
     {
-        match self.frame.borrow().get_param_positional(index)
-        {
-            Some(val) => Ok(val),
-            None => Err(ExecError::new(self.frame.borrow().call_site, format!("No positional parameter #{}", index + 1))),
-        }
+        self.frame.borrow().get_opt_param(position, name)
     }
 
     pub fn get_param_all_positional(&mut self) -> Vec<Value>
@@ -110,8 +106,8 @@ struct Frame
 {
     parent: Option<Rc<RefCell<Frame>>>,
     call_site: SourceLocation,
-    positional: Vec<Value>,
-    named: HashMap<String, Value>,
+    args: ActualArguments,
+    vars: HashMap<String, Value>,
     app_state: Option<Rc<RefCell<dyn Any>>>,
 }
 
@@ -123,8 +119,8 @@ impl Frame
         {
             parent: None,
             call_site: SourceLocation::inbuilt(),
-            positional: Vec::new(),
-            named: HashMap::new(),
+            args: ActualArguments::Positional(Vec::new()),
+            vars: HashMap::new(),
             app_state: None,
         }
     }
@@ -137,8 +133,8 @@ impl Frame
         {
             parent: None,
             call_site: SourceLocation::inbuilt(),
-            positional: Vec::new(),
-            named: HashMap::new(),
+            args: ActualArguments::Positional(Vec::new()),
+            vars: HashMap::new(),
             app_state: Some(Rc::new(RefCell::new(app_state))),
         }
     }
@@ -151,60 +147,37 @@ impl Frame
         {
             parent: Some(parent.clone()),
             call_site,
-            positional: Vec::new(),
-            named: HashMap::new(),
+            args: ActualArguments::Positional(Vec::new()),
+            vars: HashMap::new(),
             app_state: None,
         }
     }
 
-    fn new_frame(parent: Option<Rc<RefCell<Frame>>>, call_site: SourceLocation, formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Self
+    fn new_frame(parent: Option<Rc<RefCell<Frame>>>, call_site: SourceLocation, _formal_arguments: &Vec<String>, actual_arguments: ActualArguments) -> Self
     {
-        let mut result = Frame
+        Frame
         {
             parent,
-            call_site: call_site,
-            positional: Vec::new(),
-            named: HashMap::new(),
+            call_site,
+            args: actual_arguments,
+            vars: HashMap::new(),
             app_state: None,
-        };
-
-        match actual_arguments
-        {
-            ActualArguments::Positional(vec) =>
-            {
-                for (index, formal) in formal_arguments.iter().enumerate()
-                {
-                    result.named.insert(formal.clone(), vec[index].clone());
-                }
-
-                result.positional = vec;
-            },
-            ActualArguments::Named(map) =>
-            {
-                result.named = map;
-
-                for formal in formal_arguments
-                {
-                    if let Some(val) = result.named.get(formal)
-                    {
-                        result.positional.push(val.clone());
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-            },
         }
-
-        result
     }
 
     fn get_var_named(&self, name: &str) -> Option<Value>
     {
-        if let Some(here) = self.named.get(name)
+        if let Some(here) = self.vars.get(name)
         {
             return Some((*here).clone())
+        }
+
+        if let ActualArguments::Named(args) = &self.args
+        {
+            if let Some(val) = args.get(name)
+            {
+                return Some(val.clone())
+            }
         }
 
         if let Some(parent) = &self.parent
@@ -217,31 +190,44 @@ impl Frame
 
     pub fn set_var_named(&mut self, name: &str, value: Value)
     {
-        self.named.insert(name.to_owned(), value);
+        self.vars.insert(name.to_owned(), value);
     }
 
-    fn get_param_named(&self, name: &str) -> Option<Value>
+    fn get_opt_param(&self, position: usize, name: &str) -> Option<Value>
     {
-        if let Some(here) = self.named.get(name)
+        match &self.args
         {
-            return Some((*here).clone())
+            ActualArguments::Named(hash_map) =>
+            {
+                hash_map.get(name).cloned()
+            },
+            ActualArguments::Positional(vec) =>
+            {
+                if position < vec.len()
+                {
+                    Some(vec[position].clone())
+                }
+                else
+                {
+                    None
+                }
+            },
         }
-
-        None
-    }
-
-    fn get_param_positional(&self, index: usize) -> Option<Value>
-    {
-        if index < self.positional.len()
-        {
-            return Some(self.positional[index].clone());
-        }
-        None
     }
 
     fn get_param_all_positional(&self) -> Vec<Value>
     {
-        self.positional.clone()
+        match &self.args
+        {
+            ActualArguments::Named(_hash_map) =>
+            {
+                todo!()
+            },
+            ActualArguments::Positional(vec) =>
+            {
+                vec.clone()
+            },
+        }
     }
 
     fn with_app_state<AppState, Func, Value>(&self, func: Func) -> Result<Value, ExecError>

@@ -61,7 +61,7 @@ impl NativeFunctionBuilder
         }
     }
 
-    pub fn add_1<N, F, T1>(&mut self, names: N, args: [&str;1], func: F)
+    pub fn add_1<N, F, T1>(&mut self, names: N, args: [&'static str;1], func: F)
         where N: IntoFunctionNameSet,
             F: Fn(&mut Context, T1) -> ExecResult<Value> + Copy + 'static,
             T1: FromValue
@@ -74,13 +74,13 @@ impl NativeFunctionBuilder
                 &mut self.context.clone(),
                 move |context|
                 {
-                    let v1 = T1::from_value(context.get_param_positional(0)?, context)?;
+                    let v1 = T1::from_param(context, 0, args[0])?;
                     func(context, v1)
                 }));
         }
     }
 
-    pub fn add_2<N, F, T1, T2>(&mut self, names: N, args: [&str;2], func: F)
+    pub fn add_2<N, F, T1, T2>(&mut self, names: N, args: [&'static str;2], func: F)
         where N: IntoFunctionNameSet,
             F: Fn(&mut Context, T1, T2) -> ExecResult<Value> + Copy + 'static,
             T1: FromValue,
@@ -94,14 +94,14 @@ impl NativeFunctionBuilder
                 &mut self.context.clone(),
                 move |context|
                 {
-                    let v1 = T1::from_value(context.get_param_positional(0)?, context)?;
-                    let v2 = T2::from_value(context.get_param_positional(1)?, context)?;
+                    let v1 = T1::from_param(context, 0, args[0])?;
+                    let v2 = T2::from_param(context, 1, args[1])?;
                     func(context, v1, v2)
                 }));
         }
     }
 
-    pub fn add_3<N, F, T1, T2, T3>(&mut self, names: N, args: [&str;3], func: F)
+    pub fn add_3<N, F, T1, T2, T3>(&mut self, names: N, args: [&'static str;3], func: F)
         where N: IntoFunctionNameSet,
             F: Fn(&mut Context, T1, T2, T3) -> ExecResult<Value> + Copy + 'static,
             T1: FromValue,
@@ -116,15 +116,15 @@ impl NativeFunctionBuilder
                 &mut self.context.clone(),
                 move |context|
                 {
-                    let v1 = T1::from_value(context.get_param_positional(0)?, context)?;
-                    let v2 = T2::from_value(context.get_param_positional(1)?, context)?;
-                    let v3 = T3::from_value(context.get_param_positional(2)?, context)?;
+                    let v1 = T1::from_param(context, 0, args[0])?;
+                    let v2 = T2::from_param(context, 1, args[1])?;
+                    let v3 = T3::from_param(context, 2, args[2])?;
                     func(context, v1, v2, v3)
                 }));
         }
     }
 
-    pub fn add_4<N, F, T1, T2, T3, T4>(&mut self, names: N, args: [&str;4], func: F)
+    pub fn add_4<N, F, T1, T2, T3, T4>(&mut self, names: N, args: [&'static str;4], func: F)
         where N: IntoFunctionNameSet,
             F: Fn(&mut Context, T1, T2, T3, T4) -> ExecResult<Value> + Copy + 'static,
             T1: FromValue,
@@ -140,10 +140,10 @@ impl NativeFunctionBuilder
                 &mut self.context.clone(),
                 move |context|
                 {
-                    let v1 = T1::from_value(context.get_param_positional(0)?, context)?;
-                    let v2 = T2::from_value(context.get_param_positional(1)?, context)?;
-                    let v3 = T3::from_value(context.get_param_positional(2)?, context)?;
-                    let v4 = T4::from_value(context.get_param_positional(3)?, context)?;
+                    let v1 = T1::from_param(context, 0, args[0])?;
+                    let v2 = T2::from_param(context, 1, args[1])?;
+                    let v3 = T3::from_param(context, 2, args[2])?;
+                    let v4 = T4::from_param(context, 3, args[3])?;
                     func(context, v1, v2, v3, v4)
                 }));
         }

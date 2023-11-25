@@ -246,16 +246,19 @@ impl IndexedCollection
 
     pub fn push<V: IndexedValue>(&mut self, value: V) -> V::Index
     {
-        let key_value = TypeId::of::<V>();
-        let entry = self.by_value.get_mut(&key_value).unwrap();
-        entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().push(value)
+        self.push_opt_name(value, None)
     }
 
     pub fn push_named<V: IndexedValue>(&mut self, value: V, name: String) -> V::Index
     {
+        self.push_opt_name(value, Some(name))
+    }
+
+    pub fn push_opt_name<V: IndexedValue>(&mut self, value: V, name: Option<String>) -> V::Index
+    {
         let key_value = TypeId::of::<V>();
         let entry = self.by_value.get_mut(&key_value).unwrap();
-        entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().push_named(value, name)
+        entry.borrow_mut().vec.downcast_mut::<IndexedVec<V>>().unwrap().push_opt_named(value, name)
     }
 
     pub fn update_value<V: IndexedValue>(&mut self, index: V::Index, value: V)
@@ -399,9 +402,9 @@ impl<V: IndexedValue> IndexedVec<V>
         self.push_internal(item, None)
     }
 
-    pub fn push_named(&mut self, item: V, name: String) -> V::Index
+    pub fn push_opt_named(&mut self, item: V, name: Option<String>) -> V::Index
     {
-        self.push_internal(item, Some(name))
+        self.push_internal(item, name)
     }
 
     pub fn push_default(&mut self) -> V::Index

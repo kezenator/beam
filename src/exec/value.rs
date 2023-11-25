@@ -236,14 +236,16 @@ impl Value
 pub trait FromValue
     where Self: Sized
 {
-    const IS_OPTIONAL: bool;
     fn from_value(value: Value, context: &mut Context) -> ExecResult<Self>;
+
+    fn from_param(context: &mut Context, position: usize, name: &str) -> ExecResult<Self>
+    {
+        Self::from_value(context.get_param(position, name)?, context)
+    }
 }
 
 impl FromValue for Value
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<Value>
     {
         Ok(value)
@@ -253,28 +255,37 @@ impl FromValue for Value
 impl<T> FromValue for Option<T>
     where T: FromValue
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, context: &mut Context) -> ExecResult<Option<T>>
     {
         Ok(Some(T::from_value(value, context)?))
+    }
+
+    fn from_param(context: &mut Context, position: usize, name: &str) -> ExecResult<Self>
+    {
+        context.get_opt_param(position, name)
+            .map(|v| T::from_value(v, context))
+            .transpose()
     }
 }
 
 impl FromValue for bool
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<bool>
     {
         value.into_bool()
     }
 }
 
+impl FromValue for String
+{
+    fn from_value(value: Value, _: &mut Context) -> ExecResult<String>
+    {
+        value.into_string()
+    }
+}
+
 impl FromValue for Scalar
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<Scalar>
     {
         value.into_scalar()
@@ -283,8 +294,6 @@ impl FromValue for Scalar
 
 impl FromValue for Vec3
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<Vec3>
     {
         value.into_vec3()
@@ -293,8 +302,6 @@ impl FromValue for Vec3
 
 impl FromValue for Color
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<Color>
     {
         value.into_color()
@@ -303,8 +310,6 @@ impl FromValue for Color
 
 impl FromValue for Aabb
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<Aabb>
     {
         value.into_aabb()
@@ -313,8 +318,6 @@ impl FromValue for Aabb
 
 impl FromValue for Sdf
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<Sdf>
     {
         value.into_sdf()
@@ -323,8 +326,6 @@ impl FromValue for Sdf
 
 impl FromValue for TextureIndex
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, context: &mut Context) -> ExecResult<TextureIndex>
     {
         value.into_texture(context)
@@ -333,8 +334,6 @@ impl FromValue for TextureIndex
 
 impl FromValue for MaterialIndex
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<MaterialIndex>
     {
         value.into_material()
@@ -343,8 +342,6 @@ impl FromValue for MaterialIndex
 
 impl FromValue for GeomIndex
 {
-    const IS_OPTIONAL: bool = false;
-
     fn from_value(value: Value, _: &mut Context) -> ExecResult<GeomIndex>
     {
         value.into_geom()
