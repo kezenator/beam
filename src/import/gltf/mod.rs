@@ -9,7 +9,7 @@ use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object
 use crate::geom::{Aabb, AabbBuilder};
 use crate::import;
 use crate::import::{FileSystemContext, ImportError};
-use crate::indexed::{MaterialIndex, TextureIndex, TransformIndex};
+use crate::indexed::{ImageIndex, MaterialIndex, TextureIndex, TransformIndex};
 use crate::math::Scalar;
 use crate::vec::{Point3, Mat4, Vec3, Quaternion};
 
@@ -212,77 +212,12 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
     {
         None =>
         {
-            if let Some(spec_glossy) = material.pbr_specular_glossiness()
-            {
-                let diffuse = spec_glossy.diffuse_factor();
-                let diffuse = SRGB::new(diffuse[0] as Scalar, diffuse[1] as Scalar, diffuse[2] as Scalar, diffuse[3] as Scalar);
+            let mapped_material = map_material(&material_state, material)?;
 
-                let texture = match spec_glossy.diffuse_texture()
-                {
-                    None =>
-                    {
-                        let mut state = material_state.state.borrow_mut();
-                        Ok(state.scene.collection.push_named(Texture::Solid(diffuse.into()), material_state.collection_name()))
-                    },
-                    Some(image_info) =>
-                    {
-                        if image_info.texture_transform().is_some()
-                        {
-                            return Err(material_state.error("Texture transforms are not supported"));
-                        }
-
-                        import_image(&material_state, diffuse.into(), image_info.texture().source())
-                    },
-                }?;
-                let mut state = material_state.state.borrow_mut();
-                let added_index = state.scene.collection.push_named(Material::Diffuse{ texture }, material_state.collection_name());
-                state.materials.insert(index, added_index.clone());
-                Ok(added_index)
-            }
-            else
-            {
-                let mr = material.pbr_metallic_roughness();
-
-                let base_color_factor = mr.base_color_factor();
-                let base_color_factor = SRGB::new(base_color_factor[0] as Scalar, base_color_factor[1] as Scalar, base_color_factor[2] as Scalar, base_color_factor[3] as Scalar);
-
-                let texture = match mr.base_color_texture()
-                {
-                    None =>
-                    {
-                        let mut state = material_state.state.borrow_mut();
-                        Ok(state.scene.collection.push_named(Texture::Solid(base_color_factor.into()), material_state.collection_name()))
-                    },
-                    Some(image_info) =>
-                    {
-                        if image_info.texture_transform().is_some()
-                        {
-                            return Err(material_state.error("Texture transforms are not supported"));
-                        }
-
-                        import_image(&material_state, base_color_factor.into(), image_info.texture().source())
-                    },
-                }?;
-
-                let mut state = material_state.state.borrow_mut();
-
-                if mr.metallic_factor() == 0.0
-                {
-                    let added_index = state.scene.collection.push_named(Material::Diffuse{ texture }, material_state.collection_name());
-                    state.materials.insert(index, added_index.clone());
-                    Ok(added_index)
-                }
-                else if mr.metallic_factor() == 1.0
-                {
-                    let added_index = state.scene.collection.push_named(Material::Metal{ texture, fuzz: mr.roughness_factor().powf(2.0) as f64 }, material_state.collection_name());
-                    state.materials.insert(index, added_index.clone());
-                    Ok(added_index)
-                }
-                else
-                {
-                    Err(material_state.error("Unsupported material - PBR Metallic/Roughness metallic-factor only 0.0 or 1.0 supported"))
-                }
-            }
+            let mut state = material_state.state.borrow_mut();
+            let added_index = state.scene.collection.push_named(mapped_material, material_state.collection_name());
+            state.materials.insert(index, added_index.clone());
+            Ok(added_index)
         },
         Some(existing) =>
         {
@@ -291,21 +226,94 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
     }        
 }
 
-fn import_image(parent_state: &ScopedState, base_color: Color, image: gltf::Image) -> Result<TextureIndex, ImportError>
+fn map_material(material_state: &ScopedState, material: gltf::Material) -> Result<Material, ImportError>
 {
-    let texture_state = parent_state.sub_state("image", image.name(), image.index());
+    if let Some(spec_glossy) = material.pbr_specular_glossiness()
+    {
+        let diffuse = spec_glossy.diffuse_factor();
+        let diffuse = SRGB::new(diffuse[0] as Scalar, diffuse[1] as Scalar, diffuse[2] as Scalar, diffuse[3] as Scalar);
+
+        let texture = import_texture(
+            material_state,
+            "base_color",
+            diffuse.into(),
+            spec_glossy.diffuse_texture())?;
+
+        return Ok(Material::Diffuse{ texture });
+    }
+
+    let mr = material.pbr_metallic_roughness();
+
+    let base_color_factor = mr.base_color_factor();
+    let base_color_factor = SRGB::new(base_color_factor[0] as Scalar, base_color_factor[1] as Scalar, base_color_factor[2] as Scalar, base_color_factor[3] as Scalar);
+
+    let texture = import_texture(
+        material_state,
+        "base_color",
+        base_color_factor.into(),
+        mr.base_color_texture())?;
+
+    if mr.metallic_factor() == 0.0
+    {
+        Ok(Material::Diffuse{ texture })
+    }
+    else if mr.metallic_factor() == 1.0
+    {
+        Ok(Material::Metal{ texture, fuzz: mr.roughness_factor().powf(2.0) as f64 })
+    }
+    else
+    {
+        Err(material_state.error("Unsupported material - PBR Metallic/Roughness metallic-factor only 0.0 or 1.0 supported"))
+    }
+}
+
+fn import_texture(parent_state: &ScopedState, part: &'static str, base_color: Color, opt_texture_info: Option<gltf::texture::Info>) -> Result<TextureIndex, ImportError>
+{
+    let texture = match opt_texture_info
+    {
+        None =>
+        {
+            Ok(Texture::Solid(base_color))
+        },
+        Some(info) =>
+        {
+            let image = import_image(parent_state, info.texture().source())?;
+            Ok(Texture::Image{ base_color, image })
+        },
+    }?;
+
+    let mut state = parent_state.state.borrow_mut();
+    Ok(state.scene.collection.push_named(texture, format!("{} ({})", parent_state.collection_name(), part)))
+} 
+
+fn import_image(parent_state: &ScopedState, image: gltf::Image) -> Result<ImageIndex, ImportError>
+{
+    // Check for existing import
+    {
+        let state = parent_state.state.borrow_mut();
+        if let Some(existing) = state.images.get(&image.index())
+        {
+            return Ok(*existing);
+        }
+    }
+
+    // Import for the first time
+
+    let image_state = parent_state.sub_state("image", image.name(), image.index());
 
     match image.source()
     {
-        gltf::image::Source::View { .. } => Err(texture_state.error("Loading images from a view not supported")),
+        gltf::image::Source::View { .. } => Err(image_state.error("Loading images from a view not supported")),
         gltf::image::Source::Uri { uri, .. } =>
         {
             let name = image.name().map(|n| n.to_owned()).unwrap_or_else(|| uri.to_owned());
 
-            let mut state = texture_state.state.borrow_mut();
-            let image = import::image::import_image(uri, &mut state.fs_context)?;
+            let mut state = image_state.state.borrow_mut();
+            let imported_image = import::image::import_image(uri, &mut state.fs_context)?;
+            let image_index = state.scene.collection.push_named(imported_image, name.clone());
+            state.images.insert(image.index(), image_index);
 
-            Ok(state.scene.collection.push_named(Texture::Image{ base_color, image }, name))
+            Ok(image_index)
         },
     }
 }
@@ -316,6 +324,7 @@ struct ImportState<'a>
     fs_context: FileSystemContext,
     blobs: HashMap<Option<String>, Vec<u8>>,
     materials: HashMap<usize, MaterialIndex>,
+    images: HashMap<usize, ImageIndex>,
 }
 
 struct ScopedState<'a>
@@ -331,7 +340,8 @@ impl<'a> ScopedState<'a>
     {
         let blobs = HashMap::new();
         let materials = HashMap::new();
-        let state = Rc::new(RefCell::new(ImportState { scene, fs_context, blobs, materials }));
+        let images = HashMap::new();
+        let state = Rc::new(RefCell::new(ImportState { scene, fs_context, blobs, materials, images }));
         ScopedState { state, path: filename.clone(), collection_name: filename.clone() }
     }
 

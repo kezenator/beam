@@ -56,6 +56,21 @@ pub trait IndexedValue: Debug + Default + Clone + UiDisplay + UiEdit + Send + 's
     fn summary(&self) -> String;
 }
 
+impl Index for ImageIndex
+{
+    type Value = crate::import::image::Image;
+
+    fn from_usize(index: usize) -> Self
+    {
+        ImageIndex(index)
+    }
+
+    fn to_usize(&self) -> usize
+    {
+        self.0
+    }
+}
+
 impl Index for TextureIndex
 {
     type Value = crate::desc::edit::Texture;

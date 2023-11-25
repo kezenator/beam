@@ -20,9 +20,9 @@ impl Material
         match self
         {
             Material::Dielectric{ior} => crate::material::Material::Dielectric(*ior),
-            Material::Diffuse{texture} => crate::material::Material::Diffuse(collection.map_item(*texture, |texture, _| texture.build())),
-            Material::Emit{texture} => crate::material::Material::Emit(collection.map_item(*texture, |texture, _| texture.build())),
-            Material::Metal{texture, fuzz} => crate::material::Material::Metal(collection.map_item(*texture, |texture, _| texture.build()), *fuzz),
+            Material::Diffuse{texture} => crate::material::Material::Diffuse(collection.map_item(*texture, |texture, _| texture.build(collection))),
+            Material::Emit{texture} => crate::material::Material::Emit(collection.map_item(*texture, |texture, _| texture.build(collection))),
+            Material::Metal{texture, fuzz} => crate::material::Material::Metal(collection.map_item(*texture, |texture, _| texture.build(collection)), *fuzz),
         }
     }
 

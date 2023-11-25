@@ -3,7 +3,9 @@ use image::{ImageBuffer, Rgba};
 
 use crate::color::SRGB;
 use crate::import::{FileSystemContext, ImportError};
+use crate::indexed::{IndexedValue, ImageIndex};
 use crate::math::Scalar;
+use crate::ui::{UiDisplay, UiEdit, UiRenderer};
 
 #[derive(Debug, Clone)]
 pub struct Image
@@ -38,6 +40,46 @@ impl Image
     pub fn new_empty(w: u32, h: u32) -> Self
     {
         Image { data: Arc::new(RwLock::new(image::ImageBuffer::new(w, h))) }
+    }
+}
+
+impl IndexedValue for Image
+{
+    type Index = ImageIndex;
+
+    fn collect_indexes(&self, _indexes: &mut std::collections::HashSet<crate::indexed::AnyIndex>)
+    {
+    }
+
+    fn summary(&self) -> String
+    {
+        let dimensions = self.dimensions();
+        format!("{} x {} pixels", dimensions.0, dimensions.1)
+    }
+}
+
+impl UiDisplay for Image
+{
+    fn ui_display(&self, ui: &UiRenderer, label: &str)
+    {
+        ui.imgui.label_text(label, self.summary());
+    }
+}
+
+impl UiEdit for Image
+{
+    fn ui_edit(&mut self, ui: &UiRenderer, label: &str) -> bool
+    {
+        ui.imgui.label_text(label, self.summary());
+        false
+    }
+}
+
+impl Default for Image
+{
+    fn default() -> Self
+    {
+        Image::new_empty(1, 1)
     }
 }
 

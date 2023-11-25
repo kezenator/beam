@@ -1,27 +1,30 @@
 use std::collections::HashSet;
 
 use crate::desc::edit::Color;
-use crate::indexed::{IndexedValue, AnyIndex, TextureIndex};
+use crate::indexed::{IndexedValue, IndexedCollection, AnyIndex, ImageIndex, TextureIndex};
 use crate::ui::{UiDisplay, UiEdit, UiRenderer};
-use crate::import::image::Image;
 
 #[derive(Clone, Debug)]
 pub enum Texture
 {
     Solid(Color),
     Checkerboard(Color, Color),
-    Image{ base_color: Color, image: Image},
+    Image{ base_color: Color, image: ImageIndex},
 }
 
 impl Texture
 {
-    pub fn build(&self) -> crate::texture::Texture
+    pub fn build(&self, collection: &IndexedCollection) -> crate::texture::Texture
     {
         match self
         {
             Texture::Solid(color) => crate::texture::Texture::Solid(color.into_linear()),
             Texture::Checkerboard(a, b) => crate::texture::Texture::Checkerboard(a.into_linear(), b.into_linear()),
-            Texture::Image{base_color, image} => crate::texture::Texture::image(base_color.into_linear(), image.clone()),
+            Texture::Image{base_color, image} =>
+            {
+                let image = collection.map_item(*image, |i, _| i.clone());
+                crate::texture::Texture::image(base_color.into_linear(), image)
+            },
         }
     }
 
@@ -44,7 +47,7 @@ impl Texture
             for entry in [
                 Texture::Solid(Color::default()),
                 Texture::Checkerboard(Color::default(), Color::default()),
-                Texture::Image{ base_color: Color::default(), image: Image::new_empty(10, 10)} ]
+                Texture::Image{ base_color: Color::default(), image: ImageIndex::default()} ]
             {
                 let entry_tag = entry.ui_tag();
                 let selected = entry_tag == cur_tag;
@@ -109,9 +112,7 @@ impl UiDisplay for Texture
             {
                 ui.imgui.label_text(label, "Image");
                 base_color.ui_display(ui, "Base Color");
-
-                let dimensions = image.dimensions();
-                ui.imgui.label_text("Image", format!("{} x {} pixels", dimensions.0, dimensions.1))
+                image.ui_display(ui, "Image");
             },
         }
     }
@@ -138,9 +139,7 @@ impl UiEdit for Texture
             Texture::Image{ base_color, image, } =>
             {
                 result |= base_color.ui_edit(ui, "Base Color");
-                
-                let dimensions = image.dimensions();
-                ui.imgui.label_text("Image", format!("{} x {} pixels", dimensions.0, dimensions.1))
+                result |= image.ui_edit(ui, "Image");
             }
         }
 

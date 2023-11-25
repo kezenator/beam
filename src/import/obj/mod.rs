@@ -196,6 +196,7 @@ impl ResourceLoader
                 let texture = if let Some(path) = mtl.diffuse_map
                 {
                     let image = self.load_image(&path)?;
+                    let image = scene.collection.push_named(image, path);
                     scene.collection.push_named(Texture::Image{ base_color: mtl.diffuse.into(), image }, name.clone())
                 }
                 else
