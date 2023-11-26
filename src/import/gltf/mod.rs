@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::rc::Rc;
 
-use crate::color::SRGB;
+use crate::color::{SRGB, LinearRGB};
 use crate::desc::edit::transform::TransformStage;
 use crate::desc::edit::{Scene, Triangle, TriangleVertex, Geom, Transform, Object, Material, Texture, Color};
 use crate::geom::{Aabb, AabbBuilder};
@@ -232,7 +232,13 @@ fn map_material(material_state: &ScopedState, material: gltf::Material) -> Resul
 
     if (emissive_factor[0] > 0.0) || (emissive_factor[1] > 0.0) || (emissive_factor[2] > 0.0)
     {
-        let emissive_factor = SRGB::new(emissive_factor[0] as Scalar, emissive_factor[1] as Scalar, emissive_factor[2] as Scalar, 1.0);
+        let mut emissive_factor: LinearRGB = SRGB::new(emissive_factor[0] as Scalar, emissive_factor[1] as Scalar, emissive_factor[2] as Scalar, 1.0).into();
+
+        if let Some(strength) = material.emissive_strength()
+        {
+            emissive_factor = emissive_factor.multiplied_by_scalar(strength as f64);
+        }
+
         let texture = import_texture(
             material_state,
             "emissive",
@@ -261,6 +267,8 @@ fn map_material(material_state: &ScopedState, material: gltf::Material) -> Resul
     let base_color_factor = mr.base_color_factor();
     let base_color_factor = SRGB::new(base_color_factor[0] as Scalar, base_color_factor[1] as Scalar, base_color_factor[2] as Scalar, base_color_factor[3] as Scalar);
 
+    println!("Material {} => metalic {} roughness {}", material_state.collection_name(), material.pbr_metallic_roughness().metallic_factor(), material.pbr_metallic_roughness().roughness_factor());
+
     let texture = import_texture(
         material_state,
         "base_color",
@@ -288,7 +296,18 @@ fn import_texture(parent_state: &ScopedState, part: &'static str, base_color: Co
         Some(info) =>
         {
             let image = import_image(parent_state, info.texture().source())?;
-            Ok(Texture::Image{ base_color, image })
+            let mut scale = Point3::new(1.0, 1.0, 1.0);
+            let mut rotate = 0.0;
+            let mut translate = Point3::new(0.0, 0.0, 0.0);
+
+            if let Some(transform) = info.texture_transform()
+            {
+                scale = Point3::new(transform.scale()[0] as Scalar, transform.scale()[1] as Scalar, 1.0);
+                rotate = transform.rotation() as Scalar;
+                translate = Point3::new(transform.offset()[0] as Scalar, transform.offset()[1] as Scalar, 0.0);
+            }
+
+            Ok(Texture::Image{ base_color, image, scale, rotate, translate })
         },
     }?;
 

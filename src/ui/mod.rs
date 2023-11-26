@@ -51,6 +51,12 @@ impl<'a> UiRenderer<'a>
         self.imgui.label_text(label, format!("{}", val));
     }
 
+    pub fn display_angle(&self, label: &str, val: &f64)
+    {
+        self.imgui.label_text(label,
+            format!("{}", val * 180.0 / std::f64::consts::PI))
+    }
+
     pub fn display_vec3(&self, label: &str, val: &Vec3)
     {
         self.imgui.label_text(label, format!("<{}, {}, {}>", val[0], val[1], val[2]));
@@ -76,6 +82,19 @@ impl<'a> UiRenderer<'a>
             *val = as_f32 as f64;
         }
         
+        result
+    }
+
+    pub fn edit_angle(&self, label: &str, val: &mut f64) -> bool
+    {
+        let mut as_f32_degrees = (*val * 180.0 / std::f64::consts::PI) as f32;
+        let result = self.imgui.input_float(label, &mut as_f32_degrees).build();
+
+        if result
+        {
+            *val = (as_f32_degrees as f64) * std::f64::consts::PI / 180.0;
+        }
+
         result
     }
 

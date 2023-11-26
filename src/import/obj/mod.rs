@@ -197,7 +197,10 @@ impl ResourceLoader
                 {
                     let image = self.load_image(&path)?;
                     let image = scene.collection.push_named(image, path);
-                    scene.collection.push_named(Texture::Image{ base_color: mtl.diffuse.into(), image }, name.clone())
+                    let scale = Point3::new(1.0, 1.0, 1.0);
+                    let rotate = 0.0;
+                    let translate = Point3::new(0.0, 0.0, 0.0);
+                    scene.collection.push_named(Texture::Image{ base_color: mtl.diffuse.into(), image, scale, rotate, translate }, name.clone())
                 }
                 else
                 {

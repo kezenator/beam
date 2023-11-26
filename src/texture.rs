@@ -1,14 +1,14 @@
 use crate::color::LinearRGB;
 use crate::geom::Sdf;
 use crate::import::image::Image;
-use crate::vec::Point3;
+use crate::vec::{Point3, Mat4};
 
 #[derive(Clone)]
 pub enum Texture
 {
     Solid(LinearRGB),
     Checkerboard(LinearRGB, LinearRGB),
-    Image{ base_color: LinearRGB, image: Image},
+    Image{ base_color: LinearRGB, image: Image, transform: Mat4},
     Sdf(Sdf),
 }
 
@@ -24,9 +24,9 @@ impl Texture
         Texture::Checkerboard(c1.into(), c2.into())
     }
 
-    pub fn image<C: Into<LinearRGB>>(base_color: C, image: Image) -> Texture
+    pub fn image<C: Into<LinearRGB>>(base_color: C, image: Image, transform: Mat4) -> Texture
     {
-        Texture::Image{ base_color: base_color.into(), image }
+        Texture::Image{ base_color: base_color.into(), image, transform }
     }
 
     pub fn sdf(sdf: Sdf) -> Texture
@@ -55,8 +55,9 @@ impl Texture
                     *c2
                 }
             }
-            Texture::Image{ base_color, image } =>
+            Texture::Image{ base_color, image, transform } =>
             {
+                let point = transform.mul_point(point);
                 let u = point[0].fract();
                 let v = point[1].fract();
 
