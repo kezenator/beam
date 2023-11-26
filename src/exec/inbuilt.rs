@@ -118,6 +118,19 @@ pub fn add_inbuilt_functions(root_context: &mut Context)
     );
 
     builder.add_3(
+        "box",
+        ["min", "max", "name"],
+        |context, min: Point3, max: Point3, name: Option<String>|
+        {
+            let aabb = crate::desc::edit::geom::Aabb{ min, max };
+            let geom = Geom::Box { aabb };
+            let index = context.with_app_state::<Scene, _, _>(|scene| Ok(scene.collection.push_opt_name(geom, name)))?;
+
+            Ok(Value::new_geom(context.get_call_site(), index))
+        }
+    );
+
+    builder.add_3(
         "sphere",
         ["center", "radius", "name"],
         |context, center: Point3, radius: Scalar, name: Option<String>|

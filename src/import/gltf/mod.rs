@@ -228,6 +228,20 @@ fn import_material(parent_state: &ScopedState, material: gltf::Material) -> Resu
 
 fn map_material(material_state: &ScopedState, material: gltf::Material) -> Result<Material, ImportError>
 {
+    let emissive_factor = material.emissive_factor();
+
+    if (emissive_factor[0] > 0.0) || (emissive_factor[1] > 0.0) || (emissive_factor[2] > 0.0)
+    {
+        let emissive_factor = SRGB::new(emissive_factor[0] as Scalar, emissive_factor[1] as Scalar, emissive_factor[2] as Scalar, 1.0);
+        let texture = import_texture(
+            material_state,
+            "emissive",
+            emissive_factor.into(),
+            material.emissive_texture())?;
+
+        return Ok(Material::Emit { texture });
+    }
+
     if let Some(spec_glossy) = material.pbr_specular_glossiness()
     {
         let diffuse = spec_glossy.diffuse_factor();
@@ -253,17 +267,13 @@ fn map_material(material_state: &ScopedState, material: gltf::Material) -> Resul
         base_color_factor.into(),
         mr.base_color_texture())?;
 
-    if mr.metallic_factor() == 0.0
+    if mr.metallic_factor() < 0.5
     {
         Ok(Material::Diffuse{ texture })
     }
-    else if mr.metallic_factor() == 1.0
+    else // TODO - fully metallic
     {
         Ok(Material::Metal{ texture, fuzz: mr.roughness_factor().powf(2.0) as f64 })
-    }
-    else
-    {
-        Err(material_state.error("Unsupported material - PBR Metallic/Roughness metallic-factor only 0.0 or 1.0 supported"))
     }
 }
 

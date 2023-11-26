@@ -67,14 +67,34 @@ impl Surface for Aabb
 
         if tmin < tmax
         {
-            // There is a valid intersection at tmin - lets see which one it is
+            // Looks like there are intersections.
+            // We now need to find the first in range
 
-            if tmin == tx1 { return Some(ray.new_intersection(tx1, Dir3::new(-1.0, 0.0, 0.0))); }
-            if tmin == tx2 { return Some(ray.new_intersection(tx2, Dir3::new(1.0, 0.0, 0.0))); }
-            if tmin == ty1 { return Some(ray.new_intersection(ty1, Dir3::new(0.0, -1.0, 0.0))); }
-            if tmin == ty2 { return Some(ray.new_intersection(ty2, Dir3::new(0.0, 1.0, 0.0))); }
-            if tmin == tz1 { return Some(ray.new_intersection(tz1, Dir3::new(0.0, 0.0, -1.0))); }
-            if tmin == tz2 { return Some(ray.new_intersection(tz2, Dir3::new(0.0, 0.0, 1.0))); }
+            let in_range = if range.contains(tmin)
+            {
+                Some(tmin)
+            }
+            else if range.contains(tmax)
+            {
+                Some(tmax)
+            }
+            else
+            {
+                None
+            };
+
+            // If there is an intersection in the desired range,
+            // then return it
+
+            if let Some(t) = in_range
+            {
+                if t == tx1 { return Some(ray.new_intersection(tx1, Dir3::new(-1.0, 0.0, 0.0))); }
+                if t == tx2 { return Some(ray.new_intersection(tx2, Dir3::new(1.0, 0.0, 0.0))); }
+                if t == ty1 { return Some(ray.new_intersection(ty1, Dir3::new(0.0, -1.0, 0.0))); }
+                if t == ty2 { return Some(ray.new_intersection(ty2, Dir3::new(0.0, 1.0, 0.0))); }
+                if t == tz1 { return Some(ray.new_intersection(tz1, Dir3::new(0.0, 0.0, -1.0))); }
+                if t == tz2 { return Some(ray.new_intersection(tz2, Dir3::new(0.0, 0.0, 1.0))); }
+            }
         }
 
         None
