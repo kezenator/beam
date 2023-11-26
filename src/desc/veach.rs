@@ -55,7 +55,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
 
         objects.push(Object::new(
             Rectangle::new(pos - d1 - d2, 2.0 * d1, 2.0 * d2),
-            Material::emit_front_face_only(Texture::solid(SRGB::new(4.0, 4.0, 4.0, 1.0)))));
+            Material::front_only(Material::emit(Texture::solid(SRGB::new(4.0, 4.0, 4.0, 1.0))))));
 
         lighting_region.global_surfaces.push(Box::new(Rectangle::new(pos - d1 - d2, 2.0 * d1, 2.0 * d2)));
         lighting_region.local_points.push(pos);

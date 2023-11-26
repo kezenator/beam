@@ -60,7 +60,7 @@ pub fn generate_scene(desc: &SceneDescription, options: &RenderOptions) -> Scene
     {
         Object::new(
             Rectangle::new(point, u, v),
-            Material::emit_front_face_only(Texture::solid(SRGB::new(4.0, 4.0, 4.0, 1.0))))
+            Material::front_only(Material::emit(Texture::solid(SRGB::new(4.0, 4.0, 4.0, 1.0)))))
     };
 
     Scene::new(

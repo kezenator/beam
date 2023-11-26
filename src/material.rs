@@ -18,7 +18,7 @@ pub enum Material
     Metal(Texture, Scalar),
     Dielectric(Scalar),
     Emit(Texture),
-    EmitFrontFaceOnly(Texture),
+    FrontBack(Box<Material>, Box<Material>),
 }
 
 impl Material
@@ -43,9 +43,16 @@ impl Material
         Material::Emit(texture)
     }
 
-    pub fn emit_front_face_only(texture: Texture) -> Material
+    pub fn front_back(front: Material, back: Material) -> Material
     {
-        Material::EmitFrontFaceOnly(texture)
+        Material::FrontBack(Box::new(front), Box::new(back))
+    }
+
+    pub fn front_only(front: Material) -> Material
+    {
+        Self::front_back(
+            front,
+            Material::Emit(Texture::solid(LinearRGB::black())))
     }
 
     pub fn get_surface_interaction(&self, intersection: &ShadingIntersection) -> MaterialInteraction
@@ -96,25 +103,12 @@ impl Material
 
                 MaterialInteraction::Emit { emitted_color }
             },
-            Material::EmitFrontFaceOnly(texture) =>
+            Material::FrontBack(front, back) =>
             {
                 match intersection.face
                 {
-                    Face::Front =>
-                    {
-                        let mut emitted_color = texture.get_color_at(intersection.texture_coords);
-
-                        if let Some(color_coords) = intersection.opt_color
-                        {
-                            emitted_color = emitted_color.combined_with(&color_coords);
-                        }
-                        MaterialInteraction::Emit { emitted_color }
-                    },
-                    Face::Back =>
-                    {
-                        let emitted_color = LinearRGB::black();
-                        MaterialInteraction::Emit { emitted_color }
-                    },
+                    Face::Front => front.get_surface_interaction(intersection),
+                    Face::Back => back.get_surface_interaction(intersection),
                 }
             },
         }
